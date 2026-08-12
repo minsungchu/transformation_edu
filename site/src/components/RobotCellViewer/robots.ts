@@ -15,6 +15,8 @@ export interface RobotModelConfig {
   packages: Record<string, string>;
   /** 보기 좋은 초기 관절 자세 (joint 이름 → radians). */
   restPose: Record<string, number>;
+  /** 뷰어의 Flange/Tool 좌표계에 대응하는 URDF link 이름. */
+  frameLinks: {flange: string; tool: string};
 }
 
 export const ROBOT_MODELS = {
@@ -30,6 +32,7 @@ export const ROBOT_MODELS = {
       wrist_2_joint: -Math.PI / 2,
       wrist_3_joint: 0,
     },
+    frameLinks: {flange: 'flange', tool: 'tool0'},
   },
 } satisfies Record<string, RobotModelConfig>;
 

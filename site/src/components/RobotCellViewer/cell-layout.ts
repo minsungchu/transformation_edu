@@ -41,6 +41,14 @@ export const DEFAULT_CELL: CellDimensions = {
  * Camera는 작업대 위 post mount로, Camera 좌표계의 +z(광축)가 작업대를 향해
  * 아래를 보도록 x축 기준 180° 회전한다: $T^{world}_{camera}$.
  */
+/**
+ * Robot Mount일 때의 $T^{flange}_{camera}$ — 카메라가 플랜지 옆에 붙고,
+ * 광축(+z)은 플랜지 +z(공구 방향)와 나란하다.
+ */
+export function robotMountOffset(): Transform {
+  return Transform.fromTranslation([0, -0.11, 0.02]);
+}
+
 export function createCellLayout(dims: CellDimensions = DEFAULT_CELL): FrameGraph {
   const g = new FrameGraph();
   g.setTransform(CELL_FRAMES.world, CELL_FRAMES.robotBase, Transform.identity());
