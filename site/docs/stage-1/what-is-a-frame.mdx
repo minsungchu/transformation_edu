@@ -9,7 +9,7 @@ import RobotCellViewer from '@site/src/components/RobotCellViewer';
 
 # 1-1. 좌표계란 무엇인가
 
-## 위치는 항상 "어디 기준"인가
+## 1. 위치는 항상 "어디 기준"인가
 
 비전 시스템이 로봇에게 이렇게 알려 줬다고 합시다.
 
@@ -25,7 +25,7 @@ import RobotCellViewer from '@site/src/components/RobotCellViewer';
 - **로봇 응용 사고의 대부분** — 숫자가 틀려서가 아니라, 같은 숫자를 서로 다른 기준으로 해석해서 발생
   - 그래서: 이 교재 전체가 좌표계 이야기
 
-## 좌표계 = 원점 + 세 축
+## 2. 좌표계 = 원점 + 세 축
 
 좌표계는 딱 두 가지로 정의됩니다.
 
@@ -48,7 +48,7 @@ import RobotCellViewer from '@site/src/components/RobotCellViewer';
 - **기억법** — RGB 순서 = xyz 순서
 - **통용 범위** — ROS, 각종 시뮬레이터 등 로보틱스 도구 전반
 
-## 오른손 법칙
+## 3. 오른손 법칙
 
 세 축의 *방향*은 마음대로 정하지 않습니다. x축과 y축이 정해지면 z축은
 **오른손 법칙**으로 정해집니다.
@@ -74,7 +74,7 @@ import RobotCellViewer from '@site/src/components/RobotCellViewer';
 - **뷰어 조작** — 드래그로 씬을 돌려, 축 세 개가 만나는 원점을 여러 각도에서 관찰
   - 관찰 포인트: 어느 각도에서 봐도 축의 직교 관계와 오른손 법칙은 불변
 
-## 정리
+## 4. 정리
 
 - **위치 세 숫자** — 기준이 되는 좌표계가 정해져야만 의미가 있음
 - **좌표계** — 원점 + 서로 직교하는 세 축
