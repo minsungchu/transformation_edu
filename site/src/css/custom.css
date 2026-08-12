@@ -87,9 +87,18 @@ h3 {
   font-size: 2.35rem;
 }
 
+/* 헤딩 크기 위계 강화 — H1과 절 제목이 같은 급으로 보이지 않도록 */
 .markdown h2 {
   font-weight: 750;
-  margin-top: 2.6rem;
+  font-size: 1.55rem;
+  margin-top: 2.8rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--ifm-color-emphasis-200);
+}
+
+.markdown h3 {
+  font-size: 1.2rem;
+  margin-top: 2rem;
 }
 
 .markdown {
