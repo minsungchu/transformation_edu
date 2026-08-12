@@ -25,6 +25,12 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
+      # Windows에서 생성된 lockfile에는 Linux용 rspack 네이티브 바인딩 항목이
+      # 빠진다 (npm cross-platform optional deps 버그) — 버전을 맞춰 명시 설치.
+      - name: Install Linux rspack binding
+        run: |
+          V=$(cd site && node -p "require('@rspack/binding/package.json').version")
+          npm install --no-save "@rspack/binding-linux-x64-gnu@$V" -w site
       - name: Build site
         run: npm run build -w site
       - uses: actions/upload-pages-artifact@v3
