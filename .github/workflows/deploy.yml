@@ -23,12 +23,14 @@ jobs:
         with:
           node-version: 20
           cache: npm
-      # npm ci가 아니라 npm install을 쓴다: Windows에서 생성된 lockfile에는
-      # Linux용 네이티브 optional 패키지(rspack/lightningcss/swc 바인딩) 항목이
-      # 빠져 있어(npm cross-platform 버그) ci로는 설치가 누락된다. install은
-      # 현재 플랫폼 기준으로 optional deps를 다시 해석해 전부 설치한다.
+      # Windows에서 생성된 lockfile에는 Linux 네이티브 optional 패키지 항목이
+      # 빠져 있고(npm/cli#4828), lockfile이 존재하면 npm install도 누락 항목을
+      # 채우지 않는다. rspack 에러 메시지의 공식 권고대로 lockfile을 지우고
+      # 새로 해석해서 설치한다 (러너 플랫폼 기준 전체 재해석).
       - name: Install dependencies
-        run: npm install
+        run: |
+          rm package-lock.json
+          npm install
       - name: Build site
         run: npm run build -w site
       - uses: actions/upload-pages-artifact@v3
