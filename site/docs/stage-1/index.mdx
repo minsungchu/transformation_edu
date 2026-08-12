@@ -9,27 +9,27 @@ import RobotCellViewer from '@site/src/components/RobotCellViewer';
 
 # 1단계 · 좌표계 기초
 
-:::caution[미작성 챕터]
+1단계에서는 이후 모든 챕터의 전제가 되는 네 가지를 배웁니다 — 좌표계라는 개념,
+로봇 셀에 붙어 있는 좌표계들, 카메라 설치 방식(Mount) 두 가지, 그리고 좌표계 관계를
+적는 표기법 $T^{A}_{B}$와 화살표 도식을 읽는 법. **계산은 아직 하지 않습니다** —
+언어를 먼저 익히고, 수학은 2단계에서 시작합니다.
 
-이 챕터는 아직 작성되지 않았습니다. 커리큘럼 구조를 보여 주기 위한 자리입니다.
+## 이 단계에서 다루는 로봇 셀
 
-:::
-
-## 로봇 셀 미리보기
-
-1단계에서 다룰 로봇 셀입니다 — 로봇(UR5e), 작업대, 그리고 작업대 위에 post mount로
-설치된 카메라. 마우스로 드래그해 셀을 직접 돌려보고, 아래 토글로 좌표계 축(RGB
-화살표), Post ↔ Robot Mount 전환, 좌표계 사이의 $T$ 화살표(꼬리 = 기준, 화살촉 =
-타겟)를 켜 보세요.
+로봇(UR5e), 작업대, 그리고 카메라로 이루어진 셀입니다. 마우스로 드래그해 셀을
+돌려보고, 아래 토글로 좌표계 축(RGB 화살표), Post ↔ Robot Mount 전환, 좌표계 사이의
+$T$ 화살표(꼬리 = 기준, 화살촉 = 타겟)를 켜 보세요. 각 절에서 이 뷰어를 절에 맞는
+구성으로 다시 만납니다.
 
 <RobotCellViewer defaultAxes={['world', 'camera']} defaultArrows={['world-camera']} />
 
-## 예정 내용
+## 절 구성
 
-로봇 셀의 좌표계들과 이 교재의 언어(표기법·도식)를 배웁니다. 3D 로봇 셀 뷰어로
-좌표계들을 직접 돌려보며 확인합니다.
-
-- [1-1. 좌표계란 무엇인가](./what-is-a-frame.md) — 원점 + 세 축(오른손 법칙), "위치는 항상 어디 기준인가"
-- [1-2. 로봇 셀의 좌표계들](./frames-in-a-robot-cell.md) — World / Tool / Camera / Flange / User 좌표계
-- [1-3. Mount 두 방식](./mount-types.mdx) — Post Mount와 Robot Mount의 차이
-- [1-4. 표기법과 화살표 도식 읽기](./notation-and-diagrams.md) — $T^{A}_{B}$ 표기, from-to 화살표
+- [1-1. 좌표계란 무엇인가](./what-is-a-frame.mdx) — 원점 + 세 축(오른손 법칙),
+  "위치는 항상 어디 기준인가"
+- [1-2. 로봇 셀의 좌표계들](./frames-in-a-robot-cell.mdx) — World / Flange / Tool /
+  Camera / User 좌표계가 어디에 붙어 있는지 (World vs Robot Base 용어 주석 포함)
+- [1-3. Mount 두 방식](./mount-types.mdx) — Post Mount와 Robot Mount, 카메라
+  좌표계가 고정인지 로봇을 따라 움직이는지
+- [1-4. 표기법과 화살표 도식 읽기](./notation-and-diagrams.mdx) — $T^{A}_{B}$,
+  $P^{A}_{name}$, from-to 화살표 — 계산 없이 읽는 법만
