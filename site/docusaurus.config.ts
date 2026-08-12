@@ -16,9 +16,11 @@ const config: Config = {
     v4: true,
   },
 
-  // 사내 전용 정적 호스팅 — 구체 호스팅 위치는 별도 결정 (issue #1 참조)
-  url: 'https://transformation-edu.example.com',
-  baseUrl: '/',
+  // GitHub Pages 공개 배포 (사용자 결정으로 issue #1의 사내 전용 방침 변경)
+  url: 'https://minsungchu.github.io',
+  baseUrl: '/transformation_edu/',
+  organizationName: 'minsungchu',
+  projectName: 'transformation_edu',
 
   onBrokenLinks: 'throw',
 
