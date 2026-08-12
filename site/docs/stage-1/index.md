@@ -1,0 +1,24 @@
+---
+id: index
+title: 1단계 · 좌표계 기초
+sidebar_label: 1단계 개요
+description: 좌표계란 무엇인가부터 T 표기법까지 — 이후 모든 챕터의 전제
+---
+
+# 1단계 · 좌표계 기초
+
+:::caution[미작성 챕터]
+
+이 챕터는 아직 작성되지 않았습니다. 커리큘럼 구조를 보여 주기 위한 자리입니다.
+
+:::
+
+## 예정 내용
+
+로봇 셀의 좌표계들과 이 교재의 언어(표기법·도식)를 배웁니다. 3D 로봇 셀 뷰어로
+좌표계들을 직접 돌려보며 확인합니다.
+
+- [1-1. 좌표계란 무엇인가](./what-is-a-frame.md) — 원점 + 세 축(오른손 법칙), "위치는 항상 어디 기준인가"
+- [1-2. 로봇 셀의 좌표계들](./frames-in-a-robot-cell.md) — World / Tool / Camera / Flange / User 좌표계
+- [1-3. Mount 두 방식](./mount-types.md) — Post Mount와 Robot Mount의 차이
+- [1-4. 표기법과 화살표 도식 읽기](./notation-and-diagrams.md) — $T^{A}_{B}$ 표기, from-to 화살표
