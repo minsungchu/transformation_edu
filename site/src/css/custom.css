@@ -94,6 +94,7 @@ h3 {
   margin-top: 2.8rem;
   padding-bottom: 0.4rem;
   border-bottom: 1px solid var(--ifm-color-emphasis-200);
+  color: var(--ifm-color-primary);
 }
 
 .markdown h3 {
