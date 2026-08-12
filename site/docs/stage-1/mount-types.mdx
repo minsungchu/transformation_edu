@@ -9,43 +9,44 @@ import RobotCellViewer from '@site/src/components/RobotCellViewer';
 
 # 1-3. Mount 두 방식
 
-카메라를 셀 어디에 설치하느냐에는 두 가지 방식이 있고, 이 선택이 이후 배울
+카메라를 셀 어디에 설치하느냐에는 두 가지 방식이 있습니다. 이 선택이 이후 배울
 calibration의 종류까지 결정합니다.
 
 ## Post Mount — 고정 구조물에 부착
 
-**Post Mount**는 카메라를 기둥(post)이나 프레임 같은 **고정 구조물**에 설치하는
+**Post Mount**는 카메라를 기둥이나 프레임 같은 **고정 구조물**에 설치하는
 방식입니다.
 
-- Camera 좌표계는 셀에 **고정**되어 있습니다. 로봇이 어떻게 움직이든 카메라는 그대로
-  입니다.
-- 따라서 **World 좌표계와 Camera 좌표계의 관계도 변하지 않습니다.** 한 번 알아내면
-  (calibration), 로봇이 일하는 내내 그대로 쓸 수 있습니다.
-- 시야(FOV)가 고정되므로 항상 같은 영역을 봅니다.
+- **Camera 좌표계** — 셀에 고정
+  - 로봇이 어떻게 움직여도: 카메라는 그대로
+- **변하지 않는 관계** — World ↔ Camera
+  - 의미: 한 번 calibration으로 알아내면, 로봇이 일하는 내내 그대로 사용
+- **시야** — 고정
+  - 특징: 항상 같은 영역을 봄
 
 ## Robot Mount — 로봇에 부착
 
-**Robot Mount**는 카메라를 로봇의 **Flange 쪽에** 직접 다는 방식입니다 ("hand-eye"
-구성이라고도 부릅니다).
+**Robot Mount**는 카메라를 로봇의 **Flange 쪽에** 직접 다는 방식입니다.
+"hand-eye" 구성이라고도 부릅니다.
 
-- Camera 좌표계가 **로봇을 따라 움직입니다.** 로봇 자세가 바뀔 때마다 World 기준
-  카메라의 위치·방향이 달라집니다.
-- 대신 **Flange 좌표계와 Camera 좌표계의 관계는 변하지 않습니다** — 둘 다 같은
-  손목에 볼트로 붙어 있으니까요. 이 "변하지 않는 관계"를 알아내는 것이 나중에 배울
-  hand-eye calibration입니다.
-- 로봇이 카메라를 들고 다니므로, 원하는 곳에 가까이 가서 찍을 수 있습니다.
+- **Camera 좌표계** — 로봇을 따라 움직임
+  - 로봇 자세가 바뀔 때마다: World 기준 카메라의 위치·방향이 달라짐
+- **변하지 않는 관계** — Flange ↔ Camera
+  - 이유: 둘 다 같은 손목에 볼트로 붙어 있음
+  - 이 관계를 알아내는 것: 나중에 배울 hand-eye calibration
+- **시야** — 로봇이 카메라를 들고 다님
+  - 장점: 원하는 곳에 가까이 가서 촬영 가능
 
 ## 뷰어로 확인하기
 
-아래 뷰어에서 **Mount 토글을 Post ↔ Robot으로 전환**해 보세요. 그리고 Camera 축과
-Flange 축을 켠 채로 관찰하세요.
+아래 뷰어에서 **Mount 토글을 Post ↔ Robot으로 전환**해 보세요. Camera 축과 Flange
+축을 켠 채로 관찰하세요.
 
-- **Post**일 때 — 카메라는 기둥 위에 있고, Camera 좌표계는 로봇과 무관하게 셀에
-  고정되어 있습니다.
-- **Robot**일 때 — 기둥이 사라지고 카메라가 로봇 손목(Flange) 옆에 붙습니다. Camera
-  축이 Flange 축과 나란히 *한 몸으로* 붙어 있는 것을 보세요. $T$ 화살표
-  (Flange → Camera)를 켜면 두 좌표계를 잇는 짧은 화살표가 보입니다 — 로봇이 어떤
-  자세를 취해도 이 화살표는 변하지 않습니다.
+- **Post일 때** — 카메라는 기둥 위
+  - Camera 좌표계: 로봇과 무관하게 셀에 고정
+- **Robot일 때** — 기둥이 사라지고 카메라가 로봇 손목 옆에 부착
+  - 관찰 포인트: Camera 축이 Flange 축과 나란히 *한 몸으로* 붙어 있음
+  - $T$ 화살표 Flange → Camera: 두 좌표계를 잇는 짧은 화살표 — 로봇이 어떤 자세를 취해도 불변
 
 <RobotCellViewer
   axes={['camera', 'flange']}
@@ -57,19 +58,21 @@ Flange 축을 켠 채로 관찰하세요.
 
 ## 비교 정리
 
-| | Post Mount | Robot Mount |
-| :-- | :-- | :-- |
-| 카메라 설치 위치 | 고정 구조물 (기둥·프레임) | 로봇 Flange 쪽 |
-| Camera 좌표계 | 셀에 고정 | **로봇 따라 움직임** |
-| 변하지 않는 관계 | World ↔ Camera | **Flange ↔ Camera** |
-| 시야 | 고정 | 로봇이 옮겨 다니며 촬영 |
-| 관련 calibration | w2s (World-To-Scene) | f2s (Flange-To-Scene), hand-eye |
+|                    | Post Mount     | Robot Mount             |
+| :----------------- | :------------- | :---------------------- |
+| 카메라 설치 위치   | 고정 구조물    | 로봇 Flange 쪽          |
+| Camera 좌표계      | 셀에 고정      | **로봇 따라 움직임**    |
+| 변하지 않는 관계   | World ↔ Camera | **Flange ↔ Camera**     |
+| 시야               | 고정           | 로봇이 옮겨 다니며 촬영 |
+| 관련 calibration   | w2s            | f2s, hand-eye           |
 
 :::note[w2s / f2s?]
 
-w2s, f2s는 calibration 관계를 가리키는 **의미적 명칭**입니다 (w2s: World-To-Scene,
-f2s: Flange-To-Scene). 수식 표기가 아니므로 지금은 이름만 알아 두면 충분하고,
-각각 3단계(Calibration)와 5단계(Hand-Eye)에서 제대로 다룹니다.
+w2s와 f2s는 calibration 관계를 가리키는 **의미적 명칭**입니다. 수식 표기가
+아니므로 지금은 이름만 알아 두면 충분합니다.
+
+- w2s: World-To-Scene — 3단계 Calibration에서 다룸
+- f2s: Flange-To-Scene — 5단계 Hand-Eye에서 다룸
 
 :::
 
