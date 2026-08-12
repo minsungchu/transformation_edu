@@ -1,0 +1,12 @@
+{
+  "name": "transformation-edu",
+  "private": true,
+  "workspaces": [
+    "site",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspace site",
+    "test": "npm run test --workspace transform-core"
+  }
+}
