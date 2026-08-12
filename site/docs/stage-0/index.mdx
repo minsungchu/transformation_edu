@@ -26,6 +26,7 @@ import BinPickingPipeline from '@site/src/components/BinPickingPipeline';
 - **카메라** — 물체를 보지만, 로봇의 위치를 모름
 - **로봇** — 움직일 수 있지만, 물체를 보지 못함
 - **파이프라인** — 이 간극을 잇는 다리 (아래 그림)
+  - 조작: 그림은 3D 씬 — 드래그로 돌려 볼 수 있음
 
 <BinPickingPipeline />
 
@@ -41,10 +42,11 @@ import BinPickingPipeline from '@site/src/components/BinPickingPipeline';
 - **Master / Scene** — 물체의 기준 이미지와 실제 촬영 이미지
   - Master: CAD 등으로 미리 만들어 둔 기준 이미지 — 집을 위치가 미리 정의되어 있음
   - Scene: 공정 중에 실제로 촬영한 이미지
+  - 원점: Master와 Scene은 각자의 이미지 원점을 가짐 — 그림의 원점 점 + 소형 축
 - $T_{cal}$ — **Calibration의 결과**
   - 의미: World 좌표계와 Camera 좌표계 사이의 관계 $T^{world}_{camera}$
 - $T_{match}$ — **Matching의 결과**
-  - 의미: Master를 Scene 위에 겹쳐 놓는 변환
+  - 의미: Master의 원점을 Scene의 원점 위로 옮기는 변환
   - 역할: 미리 정의해 둔 집을 점 $P^{camera}_{master}$를 실제 물체의 점 $P^{camera}_{scene}$으로 옮김
 - $P^{world}_{scene}$ — **최종 답**
   - 의미: World 좌표계, 즉 로봇 기준으로 표현된 실제로 집어야 할 점
