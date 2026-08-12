@@ -21,7 +21,7 @@ import {
   buildCameraPost,
   buildFrameAxes,
   buildMathLabel,
-  buildTable,
+  buildTextLabel,
   createViewerShell,
 } from './viewer-core';
 
@@ -75,7 +75,7 @@ export function createRobotCellScene(options: RobotCellSceneOptions): RobotCellS
 
   const shell = createViewerShell({
     container,
-    // 로봇(원점)과 작업대가 나란히 보이는 측면 시점에서 시작한다.
+    // 로봇(원점)과 카메라가 나란히 보이는 측면 시점에서 시작한다.
     cameraPosition: [-0.4, 1.6, 2.75],
     target: [0.3, 0.45, 0],
     onBeforeRender: () => updateArrows(),
@@ -84,14 +84,19 @@ export function createRobotCellScene(options: RobotCellSceneOptions): RobotCellS
 
   // ── 프레임 pose: 전부 transform-core FrameGraph에서 조회 ──────────
   const frames = createCellLayout(cell);
-  const tWorldTable = frames.getTransform(CELL_FRAMES.world, CELL_FRAMES.table);
   const tWorldCamera = frames.getTransform(CELL_FRAMES.world, CELL_FRAMES.camera);
   const tWorldRobotBase = frames.getTransform(CELL_FRAMES.world, CELL_FRAMES.robotBase);
   const tFlangeCamera = robotMountOffset();
 
-  const table = buildTable(cell);
-  applyTransform(table, tWorldTable);
-  worldRoot.add(table);
+  // User 좌표계의 예로 쓰는 기준점 — 공중에 떠 있는 소형 축 (1-2절 본문이 참조).
+  const userFrameMarker = new THREE.Group();
+  userFrameMarker.position.set(cell.cameraDistance, 0, 0.35);
+  userFrameMarker.add(buildFrameAxes(0.12));
+  const userFrameLabel = new THREE.Object3D();
+  userFrameLabel.position.set(0, 0, 0.08);
+  userFrameLabel.add(new CSS2DObject(buildTextLabel('User 좌표계 예시', '#aeb8c4')));
+  userFrameMarker.add(userFrameLabel);
+  worldRoot.add(userFrameMarker);
 
   const cameraGlyph = buildCameraGlyph();
   applyTransform(cameraGlyph, tWorldCamera);

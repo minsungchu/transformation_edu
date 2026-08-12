@@ -10,7 +10,6 @@ import * as THREE from 'three';
 import {OrbitControls} from 'three/examples/jsm/controls/OrbitControls.js';
 import {CSS2DRenderer} from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import type {Transform} from 'transform-core';
-import type {CellDimensions} from './cell-layout';
 
 /** transform-core의 Transform을 Object3D의 (부모 기준) pose로 그대로 씌운다. */
 export function applyTransform(object: THREE.Object3D, t: Transform): void {
@@ -23,29 +22,6 @@ export function applyTransform(object: THREE.Object3D, t: Transform): void {
     m[8]!, m[9]!, m[10]!, m[11]!,
     m[12]!, m[13]!, m[14]!, m[15]!,
   );
-}
-
-export function buildTable(dims: CellDimensions): THREE.Group {
-  const group = new THREE.Group();
-  const top = new THREE.Mesh(
-    new THREE.BoxGeometry(dims.tableSize[0], dims.tableSize[1], 0.04),
-    new THREE.MeshStandardMaterial({color: 0x8a97a3, roughness: 0.85}),
-  );
-  top.position.z = -0.02; // 프레임 원점 = 상판 표면 중심
-  group.add(top);
-
-  const legMaterial = new THREE.MeshStandardMaterial({color: 0x5c6670, roughness: 0.9});
-  const legX = dims.tableSize[0] / 2 - 0.05;
-  const legY = dims.tableSize[1] / 2 - 0.05;
-  const legHeight = dims.tableHeight - 0.04;
-  for (const sx of [-1, 1]) {
-    for (const sy of [-1, 1]) {
-      const leg = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, legHeight), legMaterial);
-      leg.position.set(sx * legX, sy * legY, -0.04 - legHeight / 2);
-      group.add(leg);
-    }
-  }
-  return group;
 }
 
 /** Camera 좌표계 +z(광축) 방향을 바라보는 카메라 글리프. */
@@ -100,6 +76,22 @@ export function buildFrameAxes(length: number): THREE.Group {
     group.add(arrow);
   }
   return group;
+}
+
+/** 좌표계·물체 이름표 DOM. */
+export function buildTextLabel(text: string, color: string): HTMLElement {
+  const el = document.createElement('span');
+  el.style.cssText = [
+    `color:${color}`,
+    'font:600 12.5px system-ui,sans-serif',
+    'background:rgba(11,14,19,0.82)',
+    'border-radius:4px',
+    'padding:1px 5px',
+    'pointer-events:none',
+    'white-space:nowrap',
+  ].join(';');
+  el.textContent = text;
+  return el;
 }
 
 /**

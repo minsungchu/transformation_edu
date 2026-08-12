@@ -30,7 +30,7 @@ import {
   buildCameraPost,
   buildFrameAxes,
   buildMathLabel,
-  buildTable,
+  buildTextLabel,
   createViewerShell,
 } from '../RobotCellViewer/viewer-core';
 
@@ -54,6 +54,8 @@ const POINT_RED = '#e5484d';
 
 /** 물체 박스 크기 [x, y, z] (m) — 이미지 원점은 로컬 (0,0,0) = 바닥 모서리. */
 const BOX_SIZE: readonly [number, number, number] = [0.2, 0.15, 0.12];
+/** 박스 부양 높이 (m) — 물체는 공중에 떠 있다. */
+const BOX_ALTITUDE = 0.35;
 /** 박스 로컬 좌표의 picking point — Master와 Scene에서 같은 자리다. */
 const PICK_LOCAL: readonly [number, number, number] = [0.145, 0.095, 0.12];
 
@@ -156,28 +158,12 @@ function buildPipelineArrow(
   return group;
 }
 
-/** 좌표계·물체 이름표 DOM. */
-function buildTextLabel(text: string, color: string): HTMLElement {
-  const el = document.createElement('span');
-  el.style.cssText = [
-    `color:${color}`,
-    'font:600 12.5px system-ui,sans-serif',
-    'background:rgba(11,14,19,0.82)',
-    'border-radius:4px',
-    'padding:1px 5px',
-    'pointer-events:none',
-    'white-space:nowrap',
-  ].join(';');
-  el.textContent = text;
-  return el;
-}
-
 export function createPipelineScene(options: PipelineSceneOptions): PipelineScene {
   const {container, robot: robotConfig, onReady, onError} = options;
 
   const shell = createViewerShell({
     container,
-    // 로봇(World 원점) · 카메라 · 작업대 위 박스가 함께 보이는 시점.
+    // 로봇(World 원점) · 카메라 · 공중의 박스가 함께 보이는 시점.
     cameraPosition: [-0.45, 1.55, 2.35],
     target: [0.35, 0.62, 0],
   });
@@ -185,13 +171,8 @@ export function createPipelineScene(options: PipelineSceneOptions): PipelineScen
 
   const cell = DEFAULT_CELL;
   const frames = createCellLayout(cell);
-  const tWorldTable = frames.getTransform(CELL_FRAMES.world, CELL_FRAMES.table);
   const tWorldCamera = frames.getTransform(CELL_FRAMES.world, CELL_FRAMES.camera);
   const tWorldRobotBase = frames.getTransform(CELL_FRAMES.world, CELL_FRAMES.robotBase);
-
-  const table = buildTable(cell);
-  applyTransform(table, tWorldTable);
-  worldRoot.add(table);
 
   const cameraGlyph = buildCameraGlyph();
   applyTransform(cameraGlyph, tWorldCamera);
@@ -205,13 +186,13 @@ export function createPipelineScene(options: PipelineSceneOptions): PipelineScen
   cameraGlyph.add(cameraAxes);
 
   // ── Master / Scene 박스 pose (transform-core) ─────────────────────
-  // Scene: 작업대 위에 놓인 실제 물체. Master: matching으로 이미 Scene 위에
+  // Scene: 공중에 떠 있는 실제 물체. Master: matching으로 이미 Scene 위에
   // 겹쳐진 기준 이미지 — 잔차 수준의 offset/회전만 남아 와이어프레임이
   // Scene을 감싼 것처럼 보인다.
-  const tWorldScene = Transform.fromTranslation([0.66, -0.2, cell.tableHeight]).compose(
+  const tWorldScene = Transform.fromTranslation([0.66, -0.2, BOX_ALTITUDE]).compose(
     Transform.rotationZ(-0.3),
   );
-  const tWorldMaster = Transform.fromTranslation([0.676, -0.212, cell.tableHeight + 0.008]).compose(
+  const tWorldMaster = Transform.fromTranslation([0.676, -0.212, BOX_ALTITUDE + 0.008]).compose(
     Transform.rotationZ(-0.22),
   );
 
