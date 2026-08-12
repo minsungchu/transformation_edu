@@ -8,7 +8,8 @@
   border: 1px solid var(--ifm-color-emphasis-300);
   border-radius: 8px 8px 0 0;
   overflow: hidden;
-  background: var(--ifm-background-surface-color);
+  /* 3D 뷰포트는 테마와 무관하게 고정 다크 (CAD 뷰어 관례) */
+  background: #0b0e13;
 }
 
 .widget > .container:last-child {
@@ -75,7 +76,7 @@
   align-items: center;
   justify-content: center;
   font-size: 0.9rem;
-  color: var(--ifm-color-emphasis-600);
+  color: #8994a4;
   pointer-events: none;
 }
 
@@ -88,6 +89,6 @@
   right: 0.6rem;
   bottom: 0.4rem;
   font-size: 0.75rem;
-  color: var(--ifm-color-emphasis-500);
+  color: #5b6878;
   pointer-events: none;
 }

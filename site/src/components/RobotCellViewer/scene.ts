@@ -144,7 +144,7 @@ function buildArrowLabel(sup: string, sub: string, color: string): HTMLElement {
     'align-items:center',
     `color:${color}`,
     'font:italic 600 15px "KaTeX_Math","Times New Roman",serif',
-    'background:rgba(255,255,255,0.78)',
+    'background:rgba(11,14,19,0.82)',
     'border-radius:4px',
     'padding:1px 4px',
     'pointer-events:none',
@@ -217,9 +217,9 @@ export function createRobotCellScene(options: RobotCellSceneOptions): RobotCellS
   sun.position.set(2, 4, 2.5);
   scene.add(sun);
 
-  const grid = new THREE.GridHelper(4, 20, 0x8899aa, 0xaabbcc);
+  const grid = new THREE.GridHelper(4, 20, 0x55637a, 0x242c38);
   (grid.material as THREE.Material).transparent = true;
-  (grid.material as THREE.Material).opacity = 0.45;
+  (grid.material as THREE.Material).opacity = 0.6;
   scene.add(grid);
 
   // world 좌표계(z-up, 로보틱스 규약)를 three.js(y-up)로 얹는 루트.

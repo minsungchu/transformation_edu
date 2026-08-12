@@ -47,7 +47,8 @@ const config: Config = {
 
   themeConfig: {
     colorMode: {
-      respectPrefersColorScheme: true,
+      defaultMode: 'dark',
+      respectPrefersColorScheme: false,
     },
     navbar: {
       title: '로봇 좌표계 이론 교재',

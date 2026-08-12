@@ -1,33 +1,188 @@
 /**
- * Any CSS included here will be global. The classic template
- * bundles Infima by default. Infima is a CSS framework designed to
- * work well for content-centric websites.
+ * 전역 스타일 — 다크 기본 디자인.
+ *
+ * 색 시스템의 근거: 3D 뷰어의 좌표축 삼색(X=#E5484D, Y=#30A46C, Z=#3B82F6,
+ * RobotCellViewer/scene.ts의 축 화살표와 동일 값)을 UI 기능색으로 승격한다.
+ * 링크·버튼 = Z(접근 축), 정답/성공 = Y, 오답/위험 = X.
  */
 
 /* KaTeX 수식 스타일 — CDN 대신 로컬 번들 (사내 전용 배포 대비) */
 @import 'katex/dist/katex.min.css';
 
-/* You can override the default Infima variables here. */
+/* Pretendard Variable — 로컬 번들 (사내망에서도 폰트 로드 보장) */
+@import 'pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css';
+
 :root {
-  --ifm-color-primary: #2e8555;
-  --ifm-color-primary-dark: #29784c;
-  --ifm-color-primary-darker: #277148;
-  --ifm-color-primary-darkest: #205d3b;
-  --ifm-color-primary-light: #33925d;
-  --ifm-color-primary-lighter: #359962;
-  --ifm-color-primary-lightest: #3cad6e;
-  --ifm-code-font-size: 95%;
-  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
+  /* 축 삼색 (viewer 축 화살표와 동일한 hex) */
+  --axis-x: #e5484d;
+  --axis-y: #30a46c;
+  --axis-z: #3b82f6;
+
+  --ifm-font-family-base: 'Pretendard Variable', Pretendard, -apple-system,
+    BlinkMacSystemFont, 'Segoe UI', 'Malgun Gothic', sans-serif;
+  --ifm-heading-font-family: var(--ifm-font-family-base);
+  --ifm-font-weight-bold: 700;
+  --ifm-line-height-base: 1.75;
+  --ifm-code-font-size: 92%;
+
+  /* 라이트 모드 (보조): Z-파랑을 한 단계 어둡게 */
+  --ifm-color-primary: #2563eb;
+  --ifm-color-primary-dark: #1d55d6;
+  --ifm-color-primary-darker: #1b50ca;
+  --ifm-color-primary-darkest: #1642a7;
+  --ifm-color-primary-light: #3b74ee;
+  --ifm-color-primary-lighter: #477cef;
+  --ifm-color-primary-lightest: #6b94f3;
+  --ifm-color-success: #218358;
+  --ifm-color-danger: #d33338;
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.08);
 }
 
-/* For readability concerns, you should choose a lighter palette in dark mode. */
+/* ── 다크 모드 (기본) ─────────────────────────────────────────── */
 [data-theme='dark'] {
-  --ifm-color-primary: #25c2a0;
-  --ifm-color-primary-dark: #21af90;
-  --ifm-color-primary-darker: #1fa588;
-  --ifm-color-primary-darkest: #1a8870;
-  --ifm-color-primary-light: #29d5b0;
-  --ifm-color-primary-lighter: #32d8b4;
-  --ifm-color-primary-lightest: #4fddbf;
-  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
+  --ifm-color-primary: #5d97f7;
+  --ifm-color-primary-dark: #3e83f5;
+  --ifm-color-primary-darker: #2f7af4;
+  --ifm-color-primary-darkest: #0b60ea;
+  --ifm-color-primary-light: #7cabf9;
+  --ifm-color-primary-lighter: #8bb5fa;
+  --ifm-color-primary-lightest: #b9d2fc;
+
+  --ifm-color-success: #3dbd80;
+  --ifm-color-success-contrast-background: rgba(48, 164, 108, 0.12);
+  --ifm-color-danger: #ec5d61;
+  --ifm-color-danger-contrast-background: rgba(229, 72, 77, 0.12);
+
+  --ifm-background-color: #0e1116;
+  --ifm-background-surface-color: #161b23;
+  --ifm-navbar-background-color: rgba(14, 17, 22, 0.86);
+  --ifm-footer-background-color: #0a0d11;
+  --ifm-font-color-base: #e7ecf2;
+  --ifm-color-content-secondary: #9aa6b5;
+  --ifm-heading-color: #f2f5f9;
+
+  --ifm-color-emphasis-100: #1a212b;
+  --ifm-color-emphasis-200: #232c38;
+  --ifm-color-emphasis-300: #2a3340;
+  --ifm-color-emphasis-400: #3c4757;
+  --ifm-color-emphasis-500: #5b6878;
+  --ifm-color-emphasis-600: #8994a4;
+  --ifm-color-emphasis-700: #aab4c1;
+
+  --ifm-toc-border-color: #232c38;
+  --ifm-table-border-color: #2a3340;
+  --ifm-hr-background-color: #232c38;
+  --docusaurus-highlighted-code-line-bg: rgba(93, 151, 247, 0.12);
+}
+
+/* ── 타이포그래피 ────────────────────────────────────────────── */
+h1,
+h2,
+h3 {
+  letter-spacing: -0.015em;
+}
+
+.markdown h1:first-child {
+  font-weight: 800;
+  font-size: 2.35rem;
+}
+
+.markdown h2 {
+  font-weight: 750;
+  margin-top: 2.6rem;
+}
+
+.markdown {
+  font-size: 1.02rem;
+}
+
+/* 수식 블록 주변 여백 */
+.katex-display {
+  margin: 1.4rem 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.2rem 0;
+}
+
+/* ── 시그니처: 네비바 아래 X·Y·Z 축 삼색 헤어라인 ─────────────── */
+.navbar {
+  backdrop-filter: blur(8px);
+  box-shadow: none;
+  border-bottom: 1px solid var(--ifm-color-emphasis-200);
+}
+
+.navbar::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  background: linear-gradient(
+    to right,
+    var(--axis-x) 0 33.4%,
+    var(--axis-y) 33.4% 66.7%,
+    var(--axis-z) 66.7% 100%
+  );
+}
+
+.navbar__title {
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+/* ── 사이드바 ────────────────────────────────────────────────── */
+.menu {
+  font-size: 0.92rem;
+  font-weight: 500;
+}
+
+.menu__link--active:not(.menu__link--sublist) {
+  border-left: 2px solid var(--ifm-color-primary);
+  border-radius: 0 6px 6px 0;
+}
+
+[data-theme='dark'] .menu__link--active:not(.menu__link--sublist) {
+  background: rgba(93, 151, 247, 0.1);
+}
+
+/* ── 콘텐츠 요소 ─────────────────────────────────────────────── */
+[data-theme='dark'] .markdown table thead tr {
+  background: var(--ifm-color-emphasis-100);
+}
+
+[data-theme='dark'] .theme-admonition {
+  --ifm-alert-background-color: var(--ifm-color-emphasis-100);
+  border-left-width: 3px;
+}
+
+[data-theme='dark'] article a:not(.card):not(.hash-link) {
+  text-underline-offset: 3px;
+}
+
+/* 페이지네이션(이전/다음) 카드 */
+[data-theme='dark'] .pagination-nav__link {
+  border-color: var(--ifm-color-emphasis-200);
+  background: var(--ifm-background-surface-color);
+}
+
+[data-theme='dark'] .pagination-nav__link:hover {
+  border-color: var(--ifm-color-primary);
+}
+
+/* 접근성: 키보드 포커스 가시화 */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--ifm-color-primary);
+  outline-offset: 2px;
+}
+
+/* 모션 최소화 존중 */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }
