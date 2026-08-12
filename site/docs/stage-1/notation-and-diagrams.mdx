@@ -6,6 +6,7 @@ description: 위첨자 = 기준, 아래첨자 = 타겟 — 교재 전체의 수�
 ---
 
 import RobotCellViewer from '@site/src/components/RobotCellViewer';
+import Quiz, {MultipleChoice, ShortAnswer, Math} from '@site/src/components/Quiz';
 
 # 1-4. 표기법과 화살표 도식 읽기
 
@@ -100,6 +101,102 @@ $P$"를 뜻합니다. 0단계의 파이프라인 그림이 정확히 이 규칙�
 - $P^{A}_{name}$: 위첨자 = 표현 좌표계, 아래첨자 = **점의 이름** (좌표계 아님!).
 - 화살표: **꼬리 = 기준 원점, 화살촉 = 타겟 원점.** 원점 → 점 화살표는 $P$.
 - 사내 원문 자료는 첨자가 반대 — 나란히 볼 때 뒤집어 읽기.
+
+## 이해 확인 퀴즈 — 1단계 마무리
+
+다음 단계로 가기 전에, 1단계 전체(좌표계 종류 · Mount · 표기법 읽기)를 확인해
+봅시다. 제출하면 바로 채점되고 해설이 나옵니다.
+
+<Quiz>
+  <MultipleChoice
+    question="로봇의 Base를 원점으로 하는, 셀에서 움직이지 않는 기준 좌표계를 이 교재에서 부르는 이름은?"
+    options={['World 좌표계', 'Robot 좌표계', 'Base 좌표계', 'User 좌표계']}
+    answerIndex={0}
+    explanation="이 교재는 로봇 Base 기준 좌표계를 World 좌표계로 통일해 부릅니다 — Robot 좌표계, Base 좌표계라는 이름은 쓰지 않습니다 (1-2절의 용어 주석 참조)."
+  />
+  <MultipleChoice
+    question="TCP(Tool Center Point)는 어느 좌표계의 원점인가요?"
+    options={['Tool 좌표계', 'Flange 좌표계', 'World 좌표계', 'Camera 좌표계']}
+    answerIndex={0}
+    explanation="TCP는 공구 끝점(tooltip)이고, Tool 좌표계의 원점입니다. Flange 좌표계의 원점은 로봇 마지막 축 끝의 원판 중심으로, 공구를 달면 TCP와 달라집니다 (1-2절)."
+  />
+  <MultipleChoice
+    question="Robot Mount에서 로봇이 어떤 자세를 취해도 변하지 않는 관계는?"
+    options={[
+      'Flange 좌표계 ↔ Camera 좌표계',
+      'World 좌표계 ↔ Camera 좌표계',
+      'World 좌표계 ↔ Tool 좌표계',
+      'Camera 좌표계 ↔ User 좌표계',
+    ]}
+    answerIndex={0}
+    explanation="Robot Mount에서는 카메라가 Flange 쪽에 볼트로 붙어 있으므로 Flange ↔ Camera 관계가 고정입니다. 반대로 Post Mount에서는 World ↔ Camera 관계가 고정입니다 (1-3절)."
+  />
+  <MultipleChoice
+    question={
+      <>
+        <Math tex="T^{world}_{camera}" />를 바르게 읽은 것은?
+      </>
+    }
+    options={[
+      'World 좌표계에서 본 Camera 좌표계의 pose',
+      'Camera 좌표계에서 본 World 좌표계의 pose',
+      'World 좌표계와 Camera 좌표계 사이의 거리',
+      'Camera 좌표계에서 표현된 world라는 이름의 점',
+    ]}
+    answerIndex={0}
+    explanation={
+      <>
+        위첨자 = 기준(reference), 아래첨자 = 타겟입니다. <Math tex="T^{world}_{camera}" />는
+        "World 좌표계에서 본 Camera 좌표계의 pose", From World To Camera입니다. 사내 기존
+        자료는 첨자가 반대라는 점도 기억하세요 (1-4절).
+      </>
+    }
+  />
+  <MultipleChoice
+    question={
+      <>
+        <Math tex="P^{camera}_{scene}" />에서 아래첨자 <em>scene</em>이 뜻하는 것은?
+      </>
+    }
+    options={[
+      '점의 이름 (어떤 점인지)',
+      '기준 좌표계',
+      '타겟 좌표계',
+      '길이 단위',
+    ]}
+    answerIndex={0}
+    explanation={
+      <>
+        <Math tex="P" />의 위첨자는 이 점이 표현된 좌표계이고, 아래첨자는 좌표계가 아니라
+        <strong>점의 이름</strong>입니다. <Math tex="P^{camera}_{scene}" />은 "Camera
+        좌표계에서 표현된, scene이라는 점"입니다. <Math tex="T" />의 아래첨자(타겟
+        좌표계)와 헷갈리지 마세요 (1-4절).
+      </>
+    }
+  />
+  <ShortAnswer
+    question="카메라를 기둥이나 프레임 같은 고정 구조물에 설치하는 방식을 ◯◯◯ Mount라고 합니다. (영어로)"
+    acceptedAnswers={['post', 'post mount', '포스트', '포스트 마운트']}
+    displayAnswer="Post (Mount)"
+    explanation="고정 구조물에 설치하면 Post Mount, 로봇 Flange 쪽에 달면 Robot Mount입니다. Post Mount에서는 Camera 좌표계가 셀에 고정됩니다 (1-3절)."
+  />
+  <ShortAnswer
+    question={
+      <>
+        <Math tex="T^{A}_{B}" /> 표기에서 기준(reference) 좌표계는 위첨자와 아래첨자 중
+        어디에 적나요?
+      </>
+    }
+    acceptedAnswers={['위첨자', '위 첨자', 'superscript', '위']}
+    displayAnswer="위첨자"
+    explanation={
+      <>
+        위첨자 = 기준, 아래첨자 = 타겟입니다. 도식의 from-to 화살표에서는 꼬리가
+        기준(위첨자) 원점, 화살촉이 타겟(아래첨자) 원점입니다 (1-4절).
+      </>
+    }
+  />
+</Quiz>
 
 이것으로 1단계가 끝났습니다. 이제 [0단계의 파이프라인 그림](/)으로 돌아가 보세요 —
 기호 하나하나가 읽히기 시작할 겁니다. 화살표 하나($T$)의 실체가 무엇인지, 그 안에

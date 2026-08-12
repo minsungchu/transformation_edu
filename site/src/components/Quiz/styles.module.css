@@ -1,0 +1,143 @@
+.quiz {
+  margin: 2rem 0;
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: 8px;
+  overflow: hidden;
+  counter-reset: quiz-question;
+}
+
+.quizHeader {
+  padding: 0.6rem 1rem;
+  font-weight: 700;
+  background: var(--ifm-color-emphasis-100);
+  border-bottom: 1px solid var(--ifm-color-emphasis-300);
+}
+
+.question {
+  padding: 1rem;
+}
+
+.question + .question {
+  border-top: 1px solid var(--ifm-color-emphasis-200);
+}
+
+.prompt {
+  font-weight: 600;
+  margin-bottom: 0.7rem;
+}
+
+.prompt::before {
+  counter-increment: quiz-question;
+  content: 'Q' counter(quiz-question) '. ';
+  color: var(--ifm-color-primary);
+}
+
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-bottom: 0.8rem;
+}
+
+.option {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid var(--ifm-color-emphasis-200);
+  border-radius: 6px;
+  cursor: pointer;
+  margin: 0;
+}
+
+.option:hover {
+  background: var(--ifm-color-emphasis-100);
+}
+
+.optionCorrect {
+  border-color: var(--ifm-color-success);
+  background: var(--ifm-color-success-contrast-background);
+}
+
+.optionWrong {
+  border-color: var(--ifm-color-danger);
+  background: var(--ifm-color-danger-contrast-background);
+}
+
+.answerRow {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.8rem;
+}
+
+.answerInput {
+  flex: 0 1 20rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: 6px;
+  background: var(--ifm-background-color);
+  color: var(--ifm-font-color-base);
+  font-size: 0.95rem;
+}
+
+.submit {
+  padding: 0.35rem 1rem;
+  border: none;
+  border-radius: 6px;
+  background: var(--ifm-color-primary);
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.submit:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.resultCorrect,
+.resultWrong {
+  border-radius: 6px;
+  padding: 0.6rem 0.8rem;
+  font-size: 0.92rem;
+}
+
+.resultCorrect {
+  background: var(--ifm-color-success-contrast-background);
+  border: 1px solid var(--ifm-color-success);
+}
+
+.resultWrong {
+  background: var(--ifm-color-danger-contrast-background);
+  border: 1px solid var(--ifm-color-danger);
+}
+
+.resultVerdict {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  font-weight: 700;
+  margin-bottom: 0.35rem;
+}
+
+.retry {
+  border: 1px solid var(--ifm-color-emphasis-400);
+  background: var(--ifm-background-color);
+  color: var(--ifm-font-color-base);
+  border-radius: 6px;
+  padding: 0.15rem 0.7rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.explanation {
+  font-weight: 400;
+}
+
+.explanation p {
+  margin: 0 0 0.3rem;
+}
+
+.answerReveal {
+  margin: 0 0 0.3rem;
+}
