@@ -3,10 +3,11 @@
  *
  * reference DOCX 그림 2-8(Master/Scene 원점)·2-9(Binpicking Summary)를
  * ADR-0001 표기법(위첨자 = 기준 좌표계, 아래첨자 = 타겟)으로 재구성한
- * 것이다. 화살표의 from-to 방향(기준 → 타겟)은 원본과 동일하고, 첨자
- * 라벨만 스왑했다. 씬 구성은 scene.ts, 렌더링 인프라는 RobotCellViewer를
- * 재사용한다. Three.js는 브라우저에서만 동적 import되므로 SSR(빌드)
- * 환경에서 안전하다.
+ * 것이다. 이미지 원점은 원래 카메라 원점과 같고, matching이 Master의
+ * 원점을 이동시켜 Master가 Scene 위에 겹쳐진다 — $T_{match}$는 Scene
+ * 원점(카메라)에서 이동된 Master 원점으로 향한다. 씬 구성은 scene.ts,
+ * 렌더링 인프라는 RobotCellViewer를 재사용한다. Three.js는 브라우저에서만
+ * 동적 import되므로 SSR(빌드) 환경에서 안전하다.
  */
 import React, {useEffect, useMemo, useRef, useState, type ReactNode} from 'react';
 import useBaseUrl from '@docusaurus/useBaseUrl';
@@ -74,7 +75,7 @@ export default function BinPickingPipeline({height}: {height?: number} = {}): Re
         className={styles.container}
         style={height ? {height, borderRadius: 8} : {borderRadius: 8}}
         role="img"
-        aria-label="Bin picking 파이프라인 개요 3D 씬: World 좌표계(로봇)에서 Camera 좌표계로의 T_cal, 각자의 이미지 원점을 가진 Master와 Scene, Master 원점을 Scene 원점으로 옮기는 T_match, 그리고 최종 답 P world scene">
+        aria-label="Bin picking 파이프라인 개요 3D 씬: World 좌표계(로봇)에서 Camera 좌표계로의 T_cal, 카메라 원점 자리의 Master·Scene 이미지 원점, Scene을 감싸며 겹쳐진 Master와 이동된 Master 원점, Scene 원점(카메라)에서 이동된 Master 원점으로의 T_match, 그리고 최종 답 P world scene">
         {status === 'loading' && <div className={styles.overlay}>파이프라인 씬 불러오는 중…</div>}
         {status === 'error' && (
           <div className={`${styles.overlay} ${styles.error}`}>
@@ -87,7 +88,9 @@ export default function BinPickingPipeline({height}: {height?: number} = {}): Re
       </div>
       <figcaption style={{fontSize: '0.85rem', opacity: 0.75, marginTop: '0.5rem', textAlign: 'center'}}>
         Bin picking 파이프라인 개요 — 이 교재의 표기법(ADR-0001)으로 그린 3D 씬.
-        Master와 Scene은 각자의 이미지 원점(점 + 소형 축)을 갖는다. 점선은
+        Master와 Scene의 이미지 원점은 원래 카메라 원점과 같고, Matching이
+        Master의 원점을 이동시켜 두 박스가 겹쳐진다. T_match는 Scene
+        원점(카메라 자리)에서 이동된 Master 원점으로 향한다. 점선은
         파이프라인의 중간 재료, 파란 실선은 로봇에게 최종적으로 필요한 답이다.
       </figcaption>
     </figure>
