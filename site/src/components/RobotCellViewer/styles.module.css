@@ -1,0 +1,37 @@
+.container {
+  position: relative;
+  width: 100%;
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--ifm-background-surface-color);
+  margin-bottom: var(--ifm-leading);
+}
+
+.container canvas {
+  display: block;
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+  color: var(--ifm-color-emphasis-600);
+  pointer-events: none;
+}
+
+.error {
+  color: var(--ifm-color-danger);
+}
+
+.hint {
+  position: absolute;
+  right: 0.6rem;
+  bottom: 0.4rem;
+  font-size: 0.75rem;
+  color: var(--ifm-color-emphasis-500);
+  pointer-events: none;
+}
