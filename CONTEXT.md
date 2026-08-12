@@ -1,6 +1,6 @@
 # Transformation Education
 
-로봇 좌표계 이론(transformation matrix, 좌표계, 캘리브레이션, 매칭)을 교육하기 위한 웹 기반 튜토리얼 교재 프로젝트. reference 폴더의 CMES 사내 자료를 기반으로 내용을 재구성한다.
+로봇 좌표계 이론(transformation matrix, 좌표계, 캘리브레이션, 매칭)을 교육하기 위한 웹 기반 튜토리얼 교재 프로젝트. reference 폴더의 원본 자료를 기반으로 내용을 재구성한다.
 
 ## Language
 
@@ -24,7 +24,7 @@ _Avoid_: active(RPY)를 기본 표현으로 사용
 ### 좌표계 (Frames)
 
 **World 좌표계**:
-Robot Base를 원점으로 하는 기준 좌표계. 일반 로보틱스 문헌은 World와 Robot Base를 구분하기도 하지만, 이 교재는 사내 규칙에 따라 World로 통일한다 (교재 1단계에 차이 주석 포함).
+Robot Base를 원점으로 하는 기준 좌표계. 일반 로보틱스 문헌은 World와 Robot Base를 구분하기도 하지만, 이 교재는 World로 통일한다 (교재 1단계에 차이 주석 포함).
 _Avoid_: Robot 좌표계, Base 좌표계
 
 **Tool 좌표계**:

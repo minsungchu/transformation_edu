@@ -6,10 +6,10 @@
  * 링크·버튼 = Z(접근 축), 정답/성공 = Y, 오답/위험 = X.
  */
 
-/* KaTeX 수식 스타일 — CDN 대신 로컬 번들 (사내 전용 배포 대비) */
+/* KaTeX 수식 스타일 — CDN 대신 로컬 번들 */
 @import 'katex/dist/katex.min.css';
 
-/* Pretendard Variable — 로컬 번들 (사내망에서도 폰트 로드 보장) */
+/* Pretendard Variable — 로컬 번들 (외부 CDN 의존 없음) */
 @import 'pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css';
 
 :root {

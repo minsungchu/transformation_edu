@@ -1,6 +1,6 @@
 # 표기법을 reference 원문과 반대로, 표준 교과서 방식으로 채택
 
-reference 자료(CMES 사내 교육자료)는 transformation과 점을 위첨자 = 타겟/대상, 아래첨자 = 기준 좌표계로 표기한다 (예: $T^{camera}_{world}$, $P^{scene}_{camera}$). 이 교재는 이를 뒤집어 Craig, Spong 등 표준 로보틱스 교과서 방식 — **위첨자 = 기준(reference) 좌표계, 아래첨자 = 타겟** ($T^{world}_{camera}$, $P^{camera}_{scene}$) — 을 채택한다. 학습자가 교재 이후에 만나게 될 외부 문헌과의 일관성이 사내 원문과의 일관성보다 교육적으로 더 중요하고, 체인룰의 인접 인덱스 소거($T^{A}_{C} = T^{A}_{B} \cdot T^{B}_{C}$)가 시각적으로 드러나기 때문이다.
+reference 폴더의 원본 자료는 transformation과 점을 위첨자 = 타겟/대상, 아래첨자 = 기준 좌표계로 표기한다 (예: $T^{camera}_{world}$, $P^{scene}_{camera}$). 이 교재는 이를 뒤집어 Craig, Spong 등 표준 로보틱스 교과서 방식 — **위첨자 = 기준(reference) 좌표계, 아래첨자 = 타겟** ($T^{world}_{camera}$, $P^{camera}_{scene}$) — 을 채택한다. 학습자가 교재 이후에 만나게 될 외부 문헌과의 일관성이 원문과의 일관성보다 교육적으로 더 중요하고, 체인룰의 인접 인덱스 소거($T^{A}_{C} = T^{A}_{B} \cdot T^{B}_{C}$)가 시각적으로 드러나기 때문이다.
 
 ## Consequences
 

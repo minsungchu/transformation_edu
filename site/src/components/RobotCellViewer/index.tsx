@@ -56,7 +56,7 @@ function TNotation({sup, sub}: {sup: string; sub: string}): ReactNode {
 
 export default function RobotCellViewer({
   robot = DEFAULT_ROBOT,
-  height = 440,
+  height,
   jointValues,
   axes = true,
   defaultAxes = [],
@@ -168,7 +168,7 @@ export default function RobotCellViewer({
 
   return (
     <figure className={styles.widget}>
-      <div ref={containerRef} className={styles.container} style={{height}}>
+      <div ref={containerRef} className={styles.container} style={height ? {height} : undefined}>
         {status === 'loading' && <div className={styles.overlay}>로봇 셀 불러오는 중…</div>}
         {status === 'error' && (
           <div className={`${styles.overlay} ${styles.error}`}>

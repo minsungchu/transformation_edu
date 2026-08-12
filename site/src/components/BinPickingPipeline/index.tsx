@@ -14,7 +14,7 @@ import {DEFAULT_ROBOT, ROBOT_MODELS} from '../RobotCellViewer/robots';
 import type {PipelineScene} from './scene';
 import styles from '../RobotCellViewer/styles.module.css';
 
-export default function BinPickingPipeline({height = 480}: {height?: number}): ReactNode {
+export default function BinPickingPipeline({height}: {height?: number} = {}): ReactNode {
   const containerRef = useRef<HTMLDivElement>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [errorMessage, setErrorMessage] = useState('');
@@ -72,7 +72,7 @@ export default function BinPickingPipeline({height = 480}: {height?: number}): R
       <div
         ref={containerRef}
         className={styles.container}
-        style={{height, borderRadius: 8}}
+        style={height ? {height, borderRadius: 8} : {borderRadius: 8}}
         role="img"
         aria-label="Bin picking 파이프라인 개요 3D 씬: World 좌표계(로봇)에서 Camera 좌표계로의 T_cal, 각자의 이미지 원점을 가진 Master와 Scene, Master 원점을 Scene 원점으로 옮기는 T_match, 그리고 최종 답 P world scene">
         {status === 'loading' && <div className={styles.overlay}>파이프라인 씬 불러오는 중…</div>}
@@ -86,8 +86,8 @@ export default function BinPickingPipeline({height = 480}: {height?: number}): R
         )}
       </div>
       <figcaption style={{fontSize: '0.85rem', opacity: 0.75, marginTop: '0.5rem', textAlign: 'center'}}>
-        Bin picking 파이프라인 개요 — reference 그림 2-8·2-9를 이 교재의 표기법(ADR-0001)으로
-        재구성한 3D 씬. Master와 Scene은 각자의 이미지 원점(점 + 소형 축)을 갖는다. 점선은
+        Bin picking 파이프라인 개요 — 이 교재의 표기법(ADR-0001)으로 그린 3D 씬.
+        Master와 Scene은 각자의 이미지 원점(점 + 소형 축)을 갖는다. 점선은
         파이프라인의 중간 재료, 파란 실선은 로봇에게 최종적으로 필요한 답이다.
       </figcaption>
     </figure>

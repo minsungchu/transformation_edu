@@ -16,7 +16,7 @@ const config: Config = {
     v4: true,
   },
 
-  // GitHub Pages 공개 배포 (사용자 결정으로 issue #1의 사내 전용 방침 변경)
+  // GitHub Pages 공개 배포
   url: 'https://minsungchu.github.io',
   baseUrl: '/transformation_edu/',
   organizationName: 'minsungchu',
@@ -65,7 +65,7 @@ const config: Config = {
     },
     footer: {
       style: 'dark',
-      copyright: `Copyright © ${new Date().getFullYear()} CMES Robotics — 사내 교육용 자료입니다.`,
+      copyright: `Copyright © ${new Date().getFullYear()} CMES Robotics.`,
     },
     prism: {
       theme: prismThemes.github,

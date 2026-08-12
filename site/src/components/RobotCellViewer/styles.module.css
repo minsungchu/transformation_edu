@@ -5,6 +5,8 @@
 .container {
   position: relative;
   width: 100%;
+  /* 기본 비율은 정사각형 — height prop을 주면 인라인 스타일이 우선한다 */
+  aspect-ratio: 1 / 1;
   border: 1px solid var(--ifm-color-emphasis-300);
   border-radius: 8px 8px 0 0;
   overflow: hidden;
