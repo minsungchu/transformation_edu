@@ -19,6 +19,11 @@
  * 툴바 조그와 별개로 씬 안에서 직접 끄는 free 드래그도 있다 — 손목의 구체
  * 핸들을 잡아 끌면 팔이 실시간으로 따라온다. 두 조작은 같은 관절 상태를
  * 공유하므로 섞어 써도 된다.
+ *
+ * Master 박스도 끌어서 옮길 수 있다 — matching 전(떨어져 있음)과 후(겹침)를
+ * 화면에서 바로 비교하기 위한 것으로, 박스·이동된 원점·picking point가 강체로
+ * 함께 움직이고 $T_{match}$가 실시간으로 다시 그려진다. 원래(= matching이 끝난)
+ * 자리로는 툴바의 'Master 원위치' 버튼으로 되돌린다.
  */
 import React, {useEffect, useMemo, useRef, useState, type ReactNode} from 'react';
 import useBaseUrl from '@docusaurus/useBaseUrl';
@@ -273,7 +278,7 @@ export default function BinPickingPipeline({height}: {height?: number} = {}): Re
         className={styles.container}
         style={isFullscreen || !height ? undefined : {height}}
         role="img"
-        aria-label="Bin picking 파이프라인 개요 3D 씬: World 좌표계(로봇)에서 Camera 좌표계로의 T_cal, 카메라 원점 자리의 Master·Scene 이미지 원점, Scene을 감싸며 겹쳐진 Master와 박스 옆 허공에 떨어진 이동된 Master 원점, Scene 원점(카메라)에서 이동된 Master 원점으로의 T_match, 그리고 최종 답 P world scene. 로봇 플랜지에는 석션 그리퍼가 달려 있고 패드 끝단이 TCP다. 손목에는 마우스로 끌어 팔을 자유롭게 움직일 수 있는 노란 구체 드래그 핸들이 붙어 있다">
+        aria-label="Bin picking 파이프라인 개요 3D 씬: World 좌표계(로봇)에서 Camera 좌표계로의 T_cal, 카메라 원점 자리의 Master·Scene 이미지 원점, Scene을 감싸며 겹쳐진 Master와 박스 옆 허공에 떨어진 이동된 Master 원점, Scene 원점(카메라)에서 이동된 Master 원점으로의 T_match, 그리고 최종 답 P world scene. 로봇 플랜지에는 석션 그리퍼가 달려 있고 패드 끝단이 TCP다. 손목에는 마우스로 끌어 팔을 자유롭게 움직일 수 있는 노란 구체 드래그 핸들이 붙어 있다. Master 박스는 마우스로 끌어 옮길 수 있고, 이동된 Master 원점과 picking point가 상대관계를 유지한 채 함께 움직이며 T_match 화살표가 실시간으로 다시 그려진다">
         {status === 'loading' && <div className={styles.overlay}>파이프라인 씬 불러오는 중…</div>}
         {status === 'error' && (
           <div className={`${styles.overlay} ${styles.error}`}>
@@ -282,8 +287,8 @@ export default function BinPickingPipeline({height}: {height?: number} = {}): Re
         )}
         {status === 'ready' && (
           <div className={styles.hint}>
-            손목의 노란 구체 드래그: 팔 자유 이동 · 빈 공간 드래그: 회전 · 휠: 확대/축소 ·
-            우클릭 드래그: 이동
+            손목의 노란 구체 드래그: 팔 자유 이동 · Master 박스 드래그: 매칭 전/후 비교 ·
+            빈 공간 드래그: 회전 · 휠: 확대/축소 · 우클릭 드래그: 이동
           </div>
         )}
       </div>
@@ -369,6 +374,14 @@ export default function BinPickingPipeline({height}: {height?: number} = {}): Re
             }}>
             초기 자세
           </button>
+          <button
+            type="button"
+            className={styles.jogReset}
+            disabled={jogDisabled}
+            title="드래그로 옮긴 Master를 matching이 끝난 자리(Scene과 겹친 상태)로 되돌립니다."
+            onClick={() => sceneRef.current?.resetMaster()}>
+            Master 원위치
+          </button>
         </div>
         <p className={`${styles.jogNote}${noteWarn ? ` ${styles.jogWarn}` : ''}`}>{noteText}</p>
       </div>
@@ -386,6 +399,12 @@ export default function BinPickingPipeline({height}: {height?: number} = {}): Re
         팔이 다르게 움직이는 것을 볼 수 있다. 손목의 노란 구체를 마우스로 끌면
         축·스텝을 고르지 않고도 팔을 자유롭게 움직일 수 있다 — 매 프레임 IK를
         풀어 따라오며, 도달 범위를 벗어난 목표는 무시하고 마지막 자세를 유지한다.
+        Master 박스를 끌어 Scene에서 떼어 놓으면 matching 전의 모습이 된다 —
+        박스·이동된 Master 원점·Master picking point는 matching이 만든 상대관계
+        그대로 강체로 함께 움직이고, T_match와 P^camera_master 화살표만 새 위치에
+        맞춰 다시 그려진다. Scene 쪽 화살표가 꼼짝하지 않는 것도 함께 보라 —
+        움직인 것은 Master의 원점 하나뿐이기 때문이다. 'Master 원위치' 버튼으로
+        겹친 상태로 되돌릴 수 있다.
       </figcaption>
     </figure>
   );

@@ -34,6 +34,15 @@
  * 마우스로 끌면 매 프레임 IK를 풀어 팔이 따라온다. 툴바 조그가 "축 하나를 정해진
  * 스텝만큼" 미는 이산 조작이라면 이쪽은 연속 조작이고, 둘은 같은 `jointValues`를
  * 공유하므로 섞어 써도 상태가 어긋나지 않는다.
+ *
+ * **Master 박스 드래그**는 matching 전/후를 화면에서 직접 비교하는 장치다. 박스를
+ * 끌면 Master 박스 · 이동된 Master 원점 마커 · Master picking point가 하나의
+ * Group(`masterGroup`)에 묶여 **강체로** 함께 움직인다 — 셋 사이의 오프셋과 회전은
+ * 드래그 내내 불변이고, 바뀌는 것은 Group 하나의 pose뿐이다. 그래서 끌어 놓은 자리가
+ * 곧 "matching이 아직 안 끝난 상태"의 그림이 된다. 이때 $T_{match}$(카메라 원점 →
+ * 이동된 Master 원점)와 $P^{camera}_{master}$(이동된 Master 원점 → Master pick)는
+ * 끝점이 움직이므로 정적 메시로 둘 수 없고, 끝점을 받아 다시 그리는 동적 화살표로
+ * 만들어 드래그마다 갱신한다. Scene 쪽 요소는 카메라·World에 고정이라 그대로 남는다.
  */
 import * as THREE from 'three';
 import {CSS2DObject} from 'three/examples/jsm/renderers/CSS2DRenderer.js';
@@ -89,6 +98,8 @@ export interface PipelineScene {
   jogJoint: (jointName: string, delta: number) => boolean;
   /** 초기 자세로 되돌린다. */
   resetPose: () => void;
+  /** 드래그로 옮긴 Master 묶음을 matching이 끝난 원래 자리로 되돌린다. */
+  resetMaster: () => void;
   dispose: () => void;
 }
 
@@ -105,6 +116,9 @@ const BOX_SIZE: readonly [number, number, number] = [0.2, 0.15, 0.12];
 const BOX_ALTITUDE = 0.35;
 /** 박스 로컬 좌표의 picking point — Master와 Scene에서 같은 자리다. */
 const PICK_LOCAL: readonly [number, number, number] = [0.145, 0.095, 0.12];
+/** Master 몸체 불투명도 — 감싸인 Scene이 비쳐 보이도록 옅게, 잡을 때만 진하게. */
+const MASTER_BODY_OPACITY = 0.12;
+const MASTER_BODY_OPACITY_ACTIVE = 0.34;
 
 // ── 석션 그리퍼 기하 (m) ──────────────────────────────────────────────
 // 플랜지 프레임(tool0 — 원점은 6축 원점, +z가 approach 축)에서 재는 치수다.
@@ -212,34 +226,42 @@ function buildSuctionGripper(): THREE.Group {
   return group;
 }
 
+interface ObjectBox {
+  group: THREE.Group;
+  /** 반투명 몸체 — 레이캐스트 픽 대상이자 hover 강조를 입히는 곳이다. */
+  body: THREE.Mesh;
+  material: THREE.MeshStandardMaterial;
+}
+
 /**
  * Master / Scene 물체 박스 — 반투명 몸체 + 와이어프레임 모서리.
  * 이미지 원점은 원래 카메라 원점과 같으므로 박스 자체에는 원점 표시가 없다.
  * matching으로 이동한 Master의 원점은 물체 밖 허공에 buildOriginMarker로
  * 따로 그린다.
+ *
+ * 픽 대상으로는 몸체 mesh만 쓴다 — 모서리 LineSegments는 레이캐스트 임계값이
+ * 커서 실제 박스보다 훨씬 넓게 잡힌다.
  */
-function buildObjectBox(color: string, {bodyOpacity = 0.3}: {bodyOpacity?: number} = {}): THREE.Group {
+function buildObjectBox(color: string, {bodyOpacity = 0.3}: {bodyOpacity?: number} = {}): ObjectBox {
   const group = new THREE.Group();
   const geometry = new THREE.BoxGeometry(BOX_SIZE[0], BOX_SIZE[1], BOX_SIZE[2]);
   // 로컬 원점이 박스 바닥 모서리에 오도록 밀어 둔다.
   geometry.translate(BOX_SIZE[0] / 2, BOX_SIZE[1] / 2, BOX_SIZE[2] / 2);
-  const body = new THREE.Mesh(
-    geometry,
-    new THREE.MeshStandardMaterial({
-      color,
-      transparent: true,
-      opacity: bodyOpacity,
-      roughness: 0.5,
-      depthWrite: false,
-    }),
-  );
+  const material = new THREE.MeshStandardMaterial({
+    color,
+    transparent: true,
+    opacity: bodyOpacity,
+    roughness: 0.5,
+    depthWrite: false,
+  });
+  const body = new THREE.Mesh(geometry, material);
   group.add(body);
   const edges = new THREE.LineSegments(
     new THREE.EdgesGeometry(geometry),
     new THREE.LineBasicMaterial({color}),
   );
   group.add(edges);
-  return group;
+  return {group, body, material};
 }
 
 /** 이동된 이미지 원점 마커 — 점 + 소형 축. */
@@ -265,51 +287,113 @@ function buildPointDot(color: string): THREE.Mesh {
   return dot;
 }
 
-/**
- * from → to 정적 화살표 (worldRoot의 z-up 좌표로 그린다).
- * dashed = 파이프라인의 중간 재료, solid = 최종 답 강조(굵은 실린더).
- */
-function buildPipelineArrow(
-  from: THREE.Vector3,
-  to: THREE.Vector3,
-  color: string,
-  dashed: boolean,
-): THREE.Group {
-  const group = new THREE.Group();
-  const unit = new THREE.Vector3().subVectors(to, from);
-  const length = unit.length();
-  unit.normalize();
-  const headLength = Math.min(0.07, length * 0.3);
+/** 화살표의 모양·라벨 — 끝점(from/to)과 달리 만든 뒤에는 바뀌지 않는다. */
+interface ArrowStyle {
+  base: string;
+  sup: string;
+  sub: string;
+  color: string;
+  /** 점선 = 파이프라인의 중간 재료, 실선 = 최종 답 강조(굵은 실린더). */
+  dashed: boolean;
+  /** 라벨 위치 (from→to 보간 비율) — 화살표 선 위에 겹쳐 놓는다. */
+  labelT: number;
+}
 
+interface PipelineArrow {
+  group: THREE.Group;
+  /** 끝점을 주면 축·머리·라벨을 그 자리에 다시 맞춘다 (드래그마다 호출). */
+  update: (from: THREE.Vector3, to: THREE.Vector3) => void;
+}
+
+/** 머리 길이의 상한 (m) — 짧은 화살표에서는 scale로 이보다 줄여 쓴다. */
+const ARROW_HEAD_LENGTH = 0.07;
+/** 실린더·원뿔 기하의 로컬 축 — 여기서 from→to 방향으로 돌린다. */
+const GEOMETRY_AXIS = new THREE.Vector3(0, 1, 0);
+
+/**
+ * from → to 화살표 (worldRoot의 z-up 좌표로 그린다).
+ *
+ * 기하는 한 번만 만들고 update()가 위치·회전·스케일만 고쳐 쓴다 — 그래야 매
+ * 프레임 다시 그려도 버퍼를 새로 할당하지 않는다. 끝점이 고정인 화살표는 만든
+ * 직후 update()를 한 번 부르고 두면 된다.
+ */
+function buildPipelineArrow(style: ArrowStyle): PipelineArrow {
+  const {color, dashed, labelT} = style;
+  const group = new THREE.Group();
+
+  // 점선은 두 점짜리 버퍼를 제자리에서 고쳐 쓴다.
+  const linePositions = new Float32Array(6);
+  let line: THREE.Line | null = null;
+  let shaft: THREE.Mesh | null = null;
   if (dashed) {
-    const lineEnd = new THREE.Vector3().copy(to).addScaledVector(unit, -headLength * 0.8);
-    const line = new THREE.Line(
-      new THREE.BufferGeometry().setFromPoints([from.clone(), lineEnd]),
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(linePositions, 3));
+    line = new THREE.Line(
+      geometry,
       new THREE.LineDashedMaterial({color, dashSize: 0.045, gapSize: 0.028, depthTest: false}),
     );
-    line.computeLineDistances();
     line.renderOrder = 11;
+    // 끝점이 매번 바뀌므로 bounding sphere로 컬링하면 사라질 수 있다.
+    line.frustumCulled = false;
     group.add(line);
   } else {
-    const shaft = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.0065, 0.0065, length - headLength, 12),
+    // 길이 1로 만들어 두고 scale.y로 늘린다.
+    shaft = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.0065, 0.0065, 1, 12),
       new THREE.MeshBasicMaterial({color, depthTest: false}),
     );
-    shaft.position.copy(from).addScaledVector(unit, (length - headLength) / 2);
-    shaft.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), unit);
     shaft.renderOrder = 11;
     group.add(shaft);
   }
 
   const cone = new THREE.Mesh(
-    new THREE.ConeGeometry(dashed ? 0.016 : 0.021, headLength, 16),
+    new THREE.ConeGeometry(dashed ? 0.016 : 0.021, ARROW_HEAD_LENGTH, 16),
     new THREE.MeshBasicMaterial({color, depthTest: false}),
   );
-  cone.position.copy(to).addScaledVector(unit, -headLength / 2);
-  cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), unit);
   cone.renderOrder = 11;
   group.add(cone);
-  return group;
+
+  // 라벨 anchor를 화살표 선 위(labelT 지점)에 올려 겹치게 한다.
+  const labelAnchor = new THREE.Object3D();
+  labelAnchor.add(new CSS2DObject(buildMathLabel(style.base, style.sup, style.sub, color)));
+  group.add(labelAnchor);
+
+  const unit = new THREE.Vector3();
+  const orientation = new THREE.Quaternion();
+
+  const update = (from: THREE.Vector3, to: THREE.Vector3): void => {
+    unit.subVectors(to, from);
+    const length = unit.length();
+    if (length < 1e-6) {
+      return; // 끝점이 겹치면 방향이 없다 — 마지막 모습을 그대로 둔다
+    }
+    unit.divideScalar(length);
+    const headLength = Math.min(ARROW_HEAD_LENGTH, length * 0.3);
+    orientation.setFromUnitVectors(GEOMETRY_AXIS, unit);
+
+    if (line) {
+      linePositions[0] = from.x;
+      linePositions[1] = from.y;
+      linePositions[2] = from.z;
+      linePositions[3] = to.x - unit.x * headLength * 0.8;
+      linePositions[4] = to.y - unit.y * headLength * 0.8;
+      linePositions[5] = to.z - unit.z * headLength * 0.8;
+      line.geometry.attributes.position!.needsUpdate = true;
+      line.computeLineDistances(); // 대시 간격은 선 길이에 딸린 값이라 같이 갱신한다
+    }
+    if (shaft) {
+      shaft.position.copy(from).addScaledVector(unit, (length - headLength) / 2);
+      shaft.quaternion.copy(orientation);
+      shaft.scale.set(1, length - headLength, 1);
+    }
+    cone.position.copy(to).addScaledVector(unit, -headLength / 2);
+    cone.quaternion.copy(orientation);
+    cone.scale.set(1, headLength / ARROW_HEAD_LENGTH, 1); // 굵기는 그대로, 길이만
+
+    labelAnchor.position.lerpVectors(from, to, labelT);
+  };
+
+  return {group, update};
 }
 
 export function createPipelineScene(options: PipelineSceneOptions): PipelineScene {
@@ -359,13 +443,27 @@ export function createPipelineScene(options: PipelineSceneOptions): PipelineScen
     Transform.rotationZ(-0.22),
   );
 
-  const sceneBox = buildObjectBox(SCENE_BLUE);
+  const {group: sceneBox} = buildObjectBox(SCENE_BLUE);
   applyTransform(sceneBox, tWorldScene);
   worldRoot.add(sceneBox);
+
+  // Master 쪽 세 요소(박스 · 이동된 원점 마커 · picking point)는 하나의 Group에
+  // 묶는다. 셋의 상대관계는 matching이 만든 결과 그 자체라 드래그로 흐트러지면
+  // 안 되고, Group 하나만 옮기면 강체 이동이 공짜로 보장된다. Group은 항등
+  // 변환에서 시작하므로 자식들의 로컬 pose = 원래의 world pose다.
+  const masterGroup = new THREE.Group();
+  worldRoot.add(masterGroup);
+
   // Master는 몸체를 옅게 — 감싸인 Scene이 비쳐 보이도록.
-  const masterBox = buildObjectBox(MASTER_RED, {bodyOpacity: 0.12});
+  const master = buildObjectBox(MASTER_RED, {bodyOpacity: MASTER_BODY_OPACITY});
+  const masterBox = master.group;
   applyTransform(masterBox, tWorldMaster);
-  worldRoot.add(masterBox);
+  masterGroup.add(masterBox);
+  // hover·드래그 중에만 뜨는 안내 라벨 — 이름표 'Master'가 위쪽이라 아래로 뺀다.
+  const masterDragLabel = new CSS2DObject(buildTextLabel('끌어서 이동', MASTER_RED));
+  masterDragLabel.position.set(BOX_SIZE[0] / 2, BOX_SIZE[1] / 2, -0.07);
+  masterDragLabel.visible = false;
+  masterBox.add(masterDragLabel);
 
   // 이동된 Master 이미지 원점 — 원점은 콘텐츠와 함께 변환을 받으므로
   // 일반적으로 물체 밖에 떨어진다 (원본 그림 2-8의 초록 점). 카메라 원점의
@@ -375,7 +473,7 @@ export function createPipelineScene(options: PipelineSceneOptions): PipelineScen
   );
   const masterOriginMarker = buildOriginMarker(MASTER_RED);
   applyTransform(masterOriginMarker, tWorldMasterOrigin);
-  worldRoot.add(masterOriginMarker);
+  masterGroup.add(masterOriginMarker);
 
   // ── 원점·점 위치 (world 좌표, z-up) ───────────────────────────────
   const vec = (p: readonly number[]): THREE.Vector3 => new THREE.Vector3(p[0], p[1], p[2]);
@@ -387,7 +485,7 @@ export function createPipelineScene(options: PipelineSceneOptions): PipelineScen
 
   const masterPickDot = buildPointDot(POINT_RED);
   masterPickDot.position.copy(masterPick);
-  worldRoot.add(masterPickDot);
+  masterGroup.add(masterPickDot);
   const scenePickDot = buildPointDot(POINT_RED);
   scenePickDot.position.copy(scenePick);
   worldRoot.add(scenePickDot);
@@ -398,27 +496,11 @@ export function createPipelineScene(options: PipelineSceneOptions): PipelineScen
   worldRoot.add(imageOriginDot);
 
   // ── 파이프라인 화살표 5종 + 수식 라벨 ─────────────────────────────
-  interface ArrowSpec {
-    from: THREE.Vector3;
-    to: THREE.Vector3;
-    base: string;
-    sup: string;
-    sub: string;
-    color: string;
-    dashed: boolean;
-    /** 라벨 위치 (from→to 보간 비율) — 화살표 선 위에 겹쳐 놓는다. */
-    labelT: number;
-  }
-  const specs: ArrowSpec[] = [
+  // 끝점이 World·Camera·Scene에 고정인 셋은 한 번 그리면 끝이다.
+  const staticArrows: (ArrowStyle & {from: THREE.Vector3; to: THREE.Vector3})[] = [
     // T_cal: World 원점 → Camera 원점 (calibration 결과)
     {from: worldOrigin, to: cameraOrigin, base: 'T', sup: '', sub: 'cal',
      color: GRAY, dashed: true, labelT: 0.6},
-    // T_match: Scene 원점(= 카메라 원점) → 허공의 이동된 Master 원점
-    {from: cameraOrigin, to: masterOrigin, base: 'T', sup: '', sub: 'match',
-     color: GRAY, dashed: true, labelT: 0.5},
-    // P^{camera}_{master}: 이동된 Master 원점 → Master의 picking point
-    {from: masterOrigin, to: masterPick, base: 'P', sup: 'camera', sub: 'master',
-     color: GRAY, dashed: true, labelT: 0.55},
     // P^{camera}_{scene}: Camera 원점(= Scene 이미지 원점) → Scene의 picking point
     {from: cameraOrigin, to: scenePick, base: 'P', sup: 'camera', sub: 'scene',
      color: GRAY, dashed: true, labelT: 0.68},
@@ -426,14 +508,40 @@ export function createPipelineScene(options: PipelineSceneOptions): PipelineScen
     {from: worldOrigin, to: scenePick, base: 'P', sup: 'world', sub: 'scene',
      color: BLUE, dashed: false, labelT: 0.45},
   ];
-  for (const spec of specs) {
-    worldRoot.add(buildPipelineArrow(spec.from, spec.to, spec.color, spec.dashed));
-    // 라벨 anchor를 화살표 선 위(labelT 지점)에 정확히 올려 겹치게 한다.
-    const anchor = new THREE.Object3D();
-    anchor.position.lerpVectors(spec.from, spec.to, spec.labelT);
-    anchor.add(new CSS2DObject(buildMathLabel(spec.base, spec.sup, spec.sub, spec.color)));
-    worldRoot.add(anchor);
+  for (const spec of staticArrows) {
+    const arrow = buildPipelineArrow(spec);
+    arrow.update(spec.from, spec.to);
+    worldRoot.add(arrow.group);
   }
+
+  // 나머지 둘은 Master 묶음에 끝점이 걸려 있어 드래그마다 다시 그린다.
+  // T_match: Scene 원점(= 카메라 원점, 고정) → 허공의 이동된 Master 원점
+  const tMatchArrow = buildPipelineArrow({
+    base: 'T', sup: '', sub: 'match', color: GRAY, dashed: true, labelT: 0.5,
+  });
+  // P^{camera}_{master}: 이동된 Master 원점 → Master의 picking point — 두 끝점이
+  // 함께 움직이므로 길이·방향은 그대로고 평행이동만 한다.
+  const pCameraMasterArrow = buildPipelineArrow({
+    base: 'P', sup: 'camera', sub: 'master', color: GRAY, dashed: true, labelT: 0.55,
+  });
+  worldRoot.add(tMatchArrow.group, pCameraMasterArrow.group);
+
+  /**
+   * Master 화살표 두 개를 지금의 Master 묶음 위치에 맞춘다.
+   *
+   * masterGroup은 worldRoot의 직속 자식이고 **병진만** 하므로, 원점·pick 점의
+   * 현재 위치는 원래 위치 + Group의 position이다 (matrixWorld를 거치지 않아
+   * 프레임 순서에 영향받지 않는다).
+   */
+  const masterOriginNow = new THREE.Vector3();
+  const masterPickNow = new THREE.Vector3();
+  const updateMasterArrows = (): void => {
+    masterOriginNow.addVectors(masterOrigin, masterGroup.position);
+    masterPickNow.addVectors(masterPick, masterGroup.position);
+    tMatchArrow.update(cameraOrigin, masterOriginNow);
+    pCameraMasterArrow.update(masterOriginNow, masterPickNow);
+  };
+  updateMasterArrows();
 
   // ── 이름표 ────────────────────────────────────────────────────────
   const nameLabels: [readonly [number, number, number], string, string][] = [
@@ -567,21 +675,30 @@ export function createPipelineScene(options: PipelineSceneOptions): PipelineScen
     applyJogMode();
   });
 
-  // ── free 드래그 조그 ──────────────────────────────────────────────
-  // 손목 핸들을 끌면 매 프레임 "위치만 바뀐 플랜지 목표"를 IK로 푼다. 자세는 잡은
-  // 순간 값으로 고정해 두어(순수 위치 드래그) 끌려오는 동안 손목이 제멋대로 돌지
-  // 않는다. 목표점은 시선에 수직인 평면 위에서 움직이므로 깊이는 잡은 순간 그대로다.
+  // ── 씬 안에서 끄는 두 가지 드래그 ─────────────────────────────────
+  // 둘 다 "시선에 수직인 평면 위에서 목표를 옮긴다"는 같은 골격을 쓰지만 결과가
+  // 다르다:
+  //
+  // - 손목 핸들: 매 프레임 "위치만 바뀐 플랜지 목표"를 IK로 푼다. 자세는 잡은
+  //   순간 값으로 고정해 두어(순수 위치 드래그) 끌려오는 동안 손목이 제멋대로
+  //   돌지 않는다.
+  // - Master 박스: IK와 무관하게 masterGroup의 pose만 바꾼다 — 묶인 세 요소가
+  //   강체로 따라오고, 끝점이 걸린 화살표 둘을 다시 그린다.
+  //
+  // 어느 쪽도 잡지 못한 클릭은 그대로 흘려보내 OrbitControls가 궤도 회전을 맡는다.
+  type DragTarget = 'handle' | 'master';
+
   const tRobotBaseWorld = tWorldRobotBase.inverse();
   const raycaster = new THREE.Raycaster();
   const pointerNdc = new THREE.Vector2();
   const dragPlane = new THREE.Plane();
-  /** 핸들 중심 − 첫 클릭 지점 — 잡는 순간 핸들이 커서로 순간이동하지 않게 한다. */
+  /** 움직이는 대상의 기준점 − 첫 클릭 지점 — 잡는 순간 커서로 순간이동하지 않게 한다. */
   const grabOffset = new THREE.Vector3();
   const planeHit = new THREE.Vector3();
   const scratch = new THREE.Vector3();
 
-  let hovering = false;
-  let dragging = false;
+  let hoverTarget: DragTarget | null = null;
+  let dragTarget: DragTarget | null = null;
   let dragPointerId: number | null = null;
   /** 드래그 목표 — 로봇 base 좌표계에서 본 플랜지 원점 위치. */
   let followGoal: Vec3 | null = null;
@@ -597,21 +714,26 @@ export function createPipelineScene(options: PipelineSceneOptions): PipelineScen
     }
   };
 
-  const applyHandleStyle = (): void => {
-    const active = dragging || hovering;
-    handle.material.opacity = active ? 0.7 : 0.42;
-    handle.material.emissiveIntensity = active ? 0.95 : 0.4;
-    handle.sphere.scale.setScalar(active ? 1.1 : 1);
-    handle.label.visible = active;
-    shell.domElement.style.cursor = dragging ? 'grabbing' : hovering ? 'grab' : '';
+  /** hover·드래그 중인 대상만 강조하고 커서 모양을 맞춘다. */
+  const applyDragStyle = (): void => {
+    const active = (target: DragTarget): boolean =>
+      dragTarget === target || (dragTarget === null && hoverTarget === target);
+
+    const handleActive = active('handle');
+    handle.material.opacity = handleActive ? 0.7 : 0.42;
+    handle.material.emissiveIntensity = handleActive ? 0.95 : 0.4;
+    handle.sphere.scale.setScalar(handleActive ? 1.1 : 1);
+    handle.label.visible = handleActive;
+
+    const masterActive = active('master');
+    master.material.opacity = masterActive ? MASTER_BODY_OPACITY_ACTIVE : MASTER_BODY_OPACITY;
+    masterDragLabel.visible = masterActive;
+
+    shell.domElement.style.cursor = dragTarget ? 'grabbing' : hoverTarget ? 'grab' : '';
   };
 
-  /** 포인터 위치에서 카메라 레이를 세운다. 핸들이 아직 없으면 아무것도 하지 않는다. */
+  /** 포인터 위치에서 카메라 레이를 세운다. 캔버스 크기가 0이면 좌표가 없다. */
   const castFrom = (event: PointerEvent): boolean => {
-    // Raycaster는 visible을 보지 않으므로 여기서 직접 걸러 준다.
-    if (!handle.group.visible) {
-      return false;
-    }
     const rect = shell.domElement.getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0) {
       return false;
@@ -624,8 +746,21 @@ export function createPipelineScene(options: PipelineSceneOptions): PipelineScen
     return true;
   };
 
-  const hitsHandle = (event: PointerEvent): boolean =>
-    castFrom(event) && raycaster.intersectObject(handle.sphere, false).length > 0;
+  /**
+   * 포인터 아래에 있는 드래그 대상. 손목 핸들이 Master 박스보다 앞선다 — 둘이
+   * 겹쳐 보일 때는 로봇을 움직이려는 의도로 읽는 편이 자연스럽다.
+   */
+  const pickTarget = (event: PointerEvent): DragTarget | null => {
+    if (!castFrom(event)) {
+      return null;
+    }
+    // Raycaster는 visible을 보지 않으므로 핸들은 여기서 직접 걸러 준다
+    // (IK 체인이 없으면 끌어도 팔이 따라오지 못한다).
+    if (handle.group.visible && chain && raycaster.intersectObject(handle.sphere, false).length > 0) {
+      return 'handle';
+    }
+    return raycaster.intersectObject(master.body, false).length > 0 ? 'master' : null;
+  };
 
   /** three.js world 좌표(y-up) → 로봇 base 좌표 — IK 목표는 base 기준이다. */
   const toBaseFrame = (point: THREE.Vector3): Vec3 => {
@@ -634,19 +769,27 @@ export function createPipelineScene(options: PipelineSceneOptions): PipelineScen
   };
 
   const onDragMove = (event: PointerEvent): void => {
-    if (!dragging || event.pointerId !== dragPointerId || !castFrom(event)) {
+    if (!dragTarget || event.pointerId !== dragPointerId || !castFrom(event)) {
       return;
     }
-    if (raycaster.ray.intersectPlane(dragPlane, planeHit)) {
-      followGoal = toBaseFrame(planeHit.add(grabOffset));
+    if (!raycaster.ray.intersectPlane(dragPlane, planeHit)) {
+      return; // 시선과 평면이 나란해지는 순간 — 이 프레임은 건너뛴다
     }
+    planeHit.add(grabOffset);
+    if (dragTarget === 'handle') {
+      followGoal = toBaseFrame(planeHit);
+      return;
+    }
+    // masterGroup의 position은 부모(worldRoot)의 z-up 좌표다.
+    masterGroup.position.copy(worldRoot.worldToLocal(scratch.copy(planeHit)));
+    updateMasterArrows();
   };
 
   const endDrag = (): void => {
-    if (!dragging) {
+    if (!dragTarget) {
       return;
     }
-    dragging = false;
+    dragTarget = null;
     dragPointerId = null;
     followGoal = null;
     grabbedPose = null;
@@ -655,57 +798,76 @@ export function createPipelineScene(options: PipelineSceneOptions): PipelineScen
     window.removeEventListener('pointermove', onDragMove);
     window.removeEventListener('pointerup', endDrag);
     window.removeEventListener('pointercancel', endDrag);
-    applyHandleStyle();
+    applyDragStyle();
     reportState('idle');
   };
 
   const onPointerDown = (event: PointerEvent): void => {
-    if (dragging || event.button !== 0 || !chain || !hitsHandle(event)) {
+    if (dragTarget || event.button !== 0) {
+      return;
+    }
+    const target = pickTarget(event);
+    if (!target) {
       return; // 빈 공간이면 그대로 흘려보내 OrbitControls가 궤도 회전을 맡는다
     }
     // 컨테이너의 **캡처 단계**라 캔버스에 붙은 OrbitControls 리스너보다 먼저 돈다 —
     // 여기서 전파를 끊어야 드래그와 궤도 회전이 동시에 걸리지 않는다.
     event.stopPropagation();
     event.preventDefault();
-    dragging = true;
+    dragTarget = target;
     dragPointerId = event.pointerId;
     shell.controls.enabled = false;
-    grabbedPose = chain.fk(jointValues);
 
-    const handleWorld = handle.sphere.getWorldPosition(new THREE.Vector3());
+    // 드래그 평면은 "잡은 자리"를 지나야 깊이가 유지된다. 핸들은 구체 중심이
+    // 곧 목표점이라 그 자리를 쓰고, 박스는 표면의 클릭 지점을 쓴다.
+    const grabPoint = new THREE.Vector3();
+    // 실제로 옮기는 기준점 — 핸들은 구체 중심, Master는 Group 원점이다.
+    const moved = new THREE.Vector3();
+    if (target === 'handle') {
+      handle.sphere.getWorldPosition(grabPoint);
+      moved.copy(grabPoint);
+    } else {
+      const hit = raycaster.intersectObject(master.body, false)[0];
+      grabPoint.copy(hit ? hit.point : master.body.getWorldPosition(scratch));
+      masterGroup.getWorldPosition(moved);
+    }
     dragPlane.setFromNormalAndCoplanarPoint(
       shell.viewCamera.getWorldDirection(new THREE.Vector3()),
-      handleWorld,
+      grabPoint,
     );
     grabOffset.set(0, 0, 0);
     if (raycaster.ray.intersectPlane(dragPlane, planeHit)) {
-      grabOffset.subVectors(handleWorld, planeHit);
+      grabOffset.subVectors(moved, planeHit);
     }
-    followGoal = toBaseFrame(handleWorld);
-    failStreak = 0;
+
+    if (target === 'handle' && chain) {
+      grabbedPose = chain.fk(jointValues);
+      followGoal = toBaseFrame(grabPoint);
+      failStreak = 0;
+      reportState('dragging');
+    }
 
     window.addEventListener('pointermove', onDragMove);
     window.addEventListener('pointerup', endDrag);
     window.addEventListener('pointercancel', endDrag);
-    applyHandleStyle();
-    reportState('dragging');
+    applyDragStyle();
   };
 
   const onHoverMove = (event: PointerEvent): void => {
-    if (dragging) {
+    if (dragTarget) {
       return;
     }
-    const next = hitsHandle(event);
-    if (next !== hovering) {
-      hovering = next;
-      applyHandleStyle();
+    const next = pickTarget(event);
+    if (next !== hoverTarget) {
+      hoverTarget = next;
+      applyDragStyle();
     }
   };
 
   const onPointerLeave = (): void => {
-    if (!dragging && hovering) {
-      hovering = false;
-      applyHandleStyle();
+    if (!dragTarget && hoverTarget) {
+      hoverTarget = null;
+      applyDragStyle();
     }
   };
 
@@ -721,7 +883,7 @@ export function createPipelineScene(options: PipelineSceneOptions): PipelineScen
    * 관절값은 마지막 유효 자세 그대로 남는다.
    */
   const followFrame = (): void => {
-    if (!dragging || !robot || !chain || !followGoal || !grabbedPose) {
+    if (dragTarget !== 'handle' || !robot || !chain || !followGoal || !grabbedPose) {
       return;
     }
     const from = chain.fk(jointValues).translation;
@@ -790,6 +952,10 @@ export function createPipelineScene(options: PipelineSceneOptions): PipelineScen
     resetPose: () => {
       Object.assign(jointValues, robotConfig.jointValues);
       applyJointValues();
+    },
+    resetMaster: () => {
+      masterGroup.position.set(0, 0, 0);
+      updateMasterArrows();
     },
     dispose: () => {
       disposed = true;
