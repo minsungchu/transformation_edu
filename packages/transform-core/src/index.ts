@@ -23,6 +23,7 @@ export {
   mat3ApproxEquals,
   mat3Multiply,
   mat3Transpose,
+  rotationMat3ToAxisAngle,
   rotationMat3AxisAngle,
   rotationMat3X,
   rotationMat3Y,
@@ -34,3 +35,7 @@ export {eulerToRotation, rotationToEuler} from './euler';
 export {FrameGraph} from './frame-graph';
 export type {UrdfJointSpec} from './fk';
 export {KinematicChain, jointTransform, urdfRpyToRotation} from './fk';
+export type {IkOptions, IkResult} from './ik';
+export {solveIk} from './ik';
+export type {CartesianJogStep, JogReferenceFrame} from './jog';
+export {cartesianJogTarget, jogDelta} from './jog';

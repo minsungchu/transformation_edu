@@ -24,6 +24,12 @@ export interface UrdfJointSpec {
   origin?: {xyz?: Vec3; rpy?: Vec3};
   /** URDF <axis xyz> — 자식 link 좌표계 기준 회전/병진 축. 기본 [1, 0, 0]. */
   axis?: Vec3;
+  /**
+   * URDF <limit lower upper> — 관절 가동 범위 (revolute는 rad, prismatic은 m).
+   * FK는 이 값을 보지 않는다(주어진 값을 그대로 계산). 범위를 지켜야 하는 쪽은
+   * IK(`solveIk`)로, 반복 중 관절값을 이 범위로 자른다.
+   */
+  limit?: {lower: number; upper: number};
 }
 
 /** URDF origin의 rpy(roll, pitch, yaw)를 회전 행렬로. */

@@ -66,6 +66,65 @@ export function rotationMat3Z(angle: number): Mat3 {
 }
 
 /**
+ * 회전 행렬 → 회전 벡터(axis × angle, radians). `rotationMat3AxisAngle`의 역이며,
+ * 크기가 회전각(0 ~ π), 방향이 회전축이다.
+ *
+ * 두 자세의 차이를 "얼마나·어느 축으로 돌려야 하는가"라는 3-벡터로 만들 때
+ * 쓴다 (IK의 자세 오차 항).
+ *
+ * $\theta = \arccos((\mathrm{tr}R - 1)/2)$로 각을 먼저 구하는 표준 공식은 각이
+ * 0이나 π 근처일 때 무너진다(π에서는 반대칭 성분이 통째로 사라져 축을 잃는다).
+ * 그래서 전 구간에서 안정적인 사원수 경로(Shepperd 방식 — 가장 큰 성분을
+ * 골라 제곱근을 취한다)를 거친다.
+ */
+export function rotationMat3ToAxisAngle(m: Mat3): Vec3 {
+  const trace = m[0] + m[4] + m[8];
+  let w: number;
+  let x: number;
+  let y: number;
+  let z: number;
+  if (trace > 0) {
+    const s = Math.sqrt(trace + 1) * 2;
+    w = s / 4;
+    x = (m[7] - m[5]) / s;
+    y = (m[2] - m[6]) / s;
+    z = (m[3] - m[1]) / s;
+  } else if (m[0] > m[4] && m[0] > m[8]) {
+    const s = Math.sqrt(1 + m[0] - m[4] - m[8]) * 2;
+    w = (m[7] - m[5]) / s;
+    x = s / 4;
+    y = (m[1] + m[3]) / s;
+    z = (m[2] + m[6]) / s;
+  } else if (m[4] > m[8]) {
+    const s = Math.sqrt(1 + m[4] - m[0] - m[8]) * 2;
+    w = (m[2] - m[6]) / s;
+    x = (m[1] + m[3]) / s;
+    y = s / 4;
+    z = (m[5] + m[7]) / s;
+  } else {
+    const s = Math.sqrt(1 + m[8] - m[0] - m[4]) * 2;
+    w = (m[3] - m[1]) / s;
+    x = (m[2] + m[6]) / s;
+    y = (m[5] + m[7]) / s;
+    z = s / 4;
+  }
+  // q와 −q는 같은 회전 — 회전각이 [0, π]에 오도록 w ≥ 0 쪽을 고른다.
+  if (w < 0) {
+    w = -w;
+    x = -x;
+    y = -y;
+    z = -z;
+  }
+  const sinHalf = Math.hypot(x, y, z);
+  if (sinHalf === 0) {
+    return [0, 0, 0];
+  }
+  // θ = 2·atan2(sin(θ/2), cos(θ/2)) — 소각에서도 0/0이 되지 않는다.
+  const k = (2 * Math.atan2(sinHalf, w)) / sinHalf;
+  return [x * k, y * k, z * k];
+}
+
+/**
  * 임의 축 기준 회전 (Rodrigues 공식). 축은 자동 정규화된다.
  */
 export function rotationMat3AxisAngle(axis: Vec3, angle: number): Mat3 {

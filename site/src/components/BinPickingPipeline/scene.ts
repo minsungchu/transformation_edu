@@ -18,13 +18,21 @@
  *
  * 박스 pose와 점 위치는 transform-core로 계산하고, 렌더링 레이어는 결과를
  * 그리기만 한다.
+ *
+ * 여기에 조그(jog)도 얹는다 — 로봇 팔만 움직이고 파이프라인 지도 요소는 World/
+ * Camera/Scene에 고정이므로 그대로 남는다. Cartesian 조그는
+ * FK → 기준 좌표계에서 델타 적용 → DLS IK(transform-core) 순서로 풀고,
+ * Joint 조그는 관절값에 바로 더한다.
  */
 import * as THREE from 'three';
 import {CSS2DObject} from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import URDFLoader from 'urdf-loader';
-import {Transform} from 'transform-core';
+import type {URDFRobot} from 'urdf-loader';
+import type {CartesianJogStep, JogReferenceFrame, KinematicChain} from 'transform-core';
+import {Transform, cartesianJogTarget, solveIk} from 'transform-core';
 import {CELL_FRAMES, DEFAULT_CELL, createCellLayout} from '../RobotCellViewer/cell-layout';
 import type {SceneRobotConfig} from '../RobotCellViewer/scene';
+import {urdfSerialChain} from '../RobotCellViewer/urdf-chain';
 import {
   applyTransform,
   buildCameraGlyph,
@@ -34,14 +42,30 @@ import {
   createViewerShell,
 } from '../RobotCellViewer/viewer-core';
 
+/** 조그 기준 — Cartesian 두 가지 + 관절 직접 구동. */
+export type JogMode = JogReferenceFrame | 'joint';
+
 export interface PipelineSceneOptions {
   container: HTMLElement;
   robot: SceneRobotConfig;
+  /** 처음 켜 둘 조그 모드 (기준 좌표계 축 표시에 쓰인다). */
+  initialJogMode?: JogMode;
   onReady?: () => void;
   onError?: (error: unknown) => void;
 }
 
 export interface PipelineScene {
+  /** 조그 기준 좌표계 축 표시를 모드에 맞게 바꾼다. */
+  setJogMode: (mode: JogMode) => void;
+  /**
+   * Cartesian 조그 — 기준 좌표계에서 델타를 적용한 목표 pose를 IK로 푼다.
+   * 수렴하지 못하면(싱귤래리티·도달 불가) 자세를 그대로 두고 false를 돌려준다.
+   */
+  jogCartesian: (frame: JogReferenceFrame, step: CartesianJogStep) => boolean;
+  /** Joint 조그 — 관절값에 델타를 더하고 FK만 다시 돌린다 (IK 불필요). */
+  jogJoint: (jointName: string, delta: number) => boolean;
+  /** 초기 자세로 되돌린다. */
+  resetPose: () => void;
   dispose: () => void;
 }
 
@@ -160,7 +184,7 @@ function buildPipelineArrow(
 }
 
 export function createPipelineScene(options: PipelineSceneOptions): PipelineScene {
-  const {container, robot: robotConfig, onReady, onError} = options;
+  const {container, robot: robotConfig, initialJogMode = 'base', onReady, onError} = options;
 
   const shell = createViewerShell({
     container,
@@ -298,8 +322,57 @@ export function createPipelineScene(options: PipelineSceneOptions): PipelineScen
   sceneBox.add(sceneName!);
   masterOriginMarker.add(masterOriginName!);
 
-  // ── 로봇 (World 좌표계의 주인) ────────────────────────────────────
+  // ── 조그 기준 좌표계 축 ───────────────────────────────────────────
+  // Cartesian 모드에서 "지금 어느 좌표계를 기준으로 미는가"를 눈으로 읽을 수
+  // 있게 한다. Base는 World 축(항상 켜 둔 worldAxes 대신 크게 강조해 그리고),
+  // Tool은 TCP link에 붙인 축이다.
+  const buildJogReference = (length: number, text: string, labelHeight: number): THREE.Group => {
+    const group = new THREE.Group();
+    group.add(buildFrameAxes(length));
+    const anchor = new THREE.Object3D();
+    anchor.position.set(0, 0, labelHeight);
+    anchor.add(new CSS2DObject(buildTextLabel(text, '#f5c451')));
+    group.add(anchor);
+    group.visible = false;
+    return group;
+  };
+  const baseJogAxes = buildJogReference(0.5, '조그 기준: World 좌표계', 0.56);
+  worldRoot.add(baseJogAxes);
+  const toolJogAxes = buildJogReference(0.17, '조그 기준: Tool 좌표계 (TCP)', 0.2);
+
+  let jogMode: JogMode = initialJogMode;
+  const applyJogMode = (): void => {
+    baseJogAxes.visible = jogMode === 'base';
+    toolJogAxes.visible = jogMode === 'tool';
+    // Base 강조 축과 겹치지 않도록 기본 World 축은 잠시 접어 둔다.
+    worldAxes.visible = jogMode !== 'base';
+  };
+  applyJogMode();
+
+  // ── 로봇 (World 좌표계의 주인) + 조그 상태 ────────────────────────
   let disposed = false;
+  let robot: URDFRobot | null = null;
+  /** IK를 푸는 순수 수학 체인 — 렌더링용 URDF 씬 그래프와 같은 기하다. */
+  let chain: KinematicChain | null = null;
+  const jointValues: Record<string, number> = {...robotConfig.jointValues};
+
+  /**
+   * 관절값을 씬에 반영하고, urdf-loader가 limit으로 자른 실제 값을 되읽어
+   * 상태를 맞춘다 (다음 조그가 어긋난 값에서 출발하지 않도록).
+   */
+  const applyJointValues = (): void => {
+    if (!robot) {
+      return;
+    }
+    for (const [name, value] of Object.entries(jointValues)) {
+      robot.setJointValue(name, value);
+      const applied = robot.joints[name]?.angle;
+      if (typeof applied === 'number') {
+        jointValues[name] = applied;
+      }
+    }
+  };
+
   const manager = new THREE.LoadingManager(
     () => {
       if (!disposed) {
@@ -315,18 +388,60 @@ export function createPipelineScene(options: PipelineSceneOptions): PipelineScen
   );
   const loader = new URDFLoader(manager);
   loader.packages = robotConfig.packages;
-  loader.load(robotConfig.urdfUrl, (robot) => {
+  loader.load(robotConfig.urdfUrl, (loadedRobot) => {
     if (disposed) {
       return;
     }
-    for (const [joint, value] of Object.entries(robotConfig.jointValues)) {
-      robot.setJointValue(joint, value);
-    }
+    robot = loadedRobot;
+    applyJointValues();
     applyTransform(robot, tWorldRobotBase);
     worldRoot.add(robot);
+
+    const toolLink = robot.links[robotConfig.frameLinks.tool];
+    if (toolLink) {
+      toolLink.add(toolJogAxes);
+    }
+    try {
+      chain = urdfSerialChain(robot, robotConfig.frameLinks.tool);
+    } catch (error) {
+      // 체인을 못 세우면 Cartesian 조그만 비활성이고 나머지 씬은 정상이다.
+      console.warn('IK 체인을 만들지 못해 Cartesian 조그를 끕니다:', error);
+    }
+    applyJogMode();
   });
 
   return {
+    setJogMode: (mode) => {
+      jogMode = mode;
+      applyJogMode();
+    },
+    jogCartesian: (frame, step) => {
+      if (!robot || !chain) {
+        return false;
+      }
+      // 현재 관절각 → FK로 현재 TCP pose → 기준 좌표계에서 델타 적용 → IK.
+      const target = cartesianJogTarget(chain.fk(jointValues), step, frame);
+      const result = solveIk(chain, target, jointValues, {maxIterations: 80});
+      if (!result.converged) {
+        return false; // 싱귤래리티·도달 불가 — 이 스텝은 조용히 무시한다
+      }
+      Object.assign(jointValues, result.values);
+      applyJointValues();
+      return true;
+    },
+    jogJoint: (jointName, delta) => {
+      if (!robot || !(jointName in jointValues)) {
+        return false;
+      }
+      const before = jointValues[jointName]!;
+      jointValues[jointName] = before + delta;
+      applyJointValues(); // limit을 넘으면 여기서 잘려 되읽힌다
+      return Math.abs(jointValues[jointName]! - before) > 1e-9;
+    },
+    resetPose: () => {
+      Object.assign(jointValues, robotConfig.jointValues);
+      applyJointValues();
+    },
     dispose: () => {
       disposed = true;
       shell.dispose();

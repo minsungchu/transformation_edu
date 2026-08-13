@@ -51,6 +51,91 @@
   user-select: none;
 }
 
+/* ── 조그(jog) 컨트롤 ────────────────────────────────────────────── */
+
+.jogSelect {
+  padding: 0.05rem 0.2rem;
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: 4px;
+  background: var(--ifm-background-color);
+  color: inherit;
+  font: inherit;
+  font-size: 0.8rem;
+}
+
+.jogGrid {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.4rem;
+}
+
+.jogChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.1rem 0.2rem;
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: 6px;
+}
+
+.jogChipLabel {
+  min-width: 1.6rem;
+  text-align: center;
+  font-weight: 600;
+  font-size: 0.8rem;
+  cursor: help;
+}
+
+.jogButton {
+  width: 1.4rem;
+  height: 1.4rem;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: var(--ifm-color-emphasis-200);
+  color: inherit;
+  font: inherit;
+  font-size: 0.9rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.jogButton:hover:not(:disabled) {
+  background: var(--ifm-color-emphasis-400);
+}
+
+.jogButton:disabled,
+.jogReset:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.jogReset {
+  padding: 0.1rem 0.5rem;
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: 6px;
+  background: var(--ifm-background-color);
+  color: inherit;
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.jogReset:hover:not(:disabled) {
+  background: var(--ifm-color-emphasis-200);
+}
+
+.jogNote {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--ifm-color-emphasis-700);
+}
+
+.jogWarn {
+  color: var(--ifm-color-warning-darkest);
+}
+
 .tNotation {
   display: inline-flex;
   align-items: center;
