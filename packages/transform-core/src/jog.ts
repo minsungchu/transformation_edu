@@ -5,12 +5,16 @@
  * 움직인다. 차이는 델타를 **어느 쪽에 곱하느냐** 하나뿐이다
  * (ADR-0001 표기: 위첨자 = 기준 좌표계, 아래첨자 = 타겟):
  *
- * - **Base 기준** — 델타를 base 좌표계에서 읽으므로 왼쪽에 곱한다(좌곱):
+ * - **Base 기준 병진** — 델타를 base 좌표계에서 읽으므로 왼쪽에 곱한다(좌곱):
  *   $T^{base}_{tool'} = \Delta \cdot T^{base}_{tool}$.
  *   TCP가 어떤 자세든 World의 +X 방향으로 간다.
+ * - **Base 기준 회전** — 축 방향은 World이되 회전 중심은 base 원점이 아니라
+ *   제어점(TCP) 위치여야 한다. 그래서 그 점 둘레로 감싼다:
+ *   $T' = \mathrm{Tr}(t)\,\Delta\,\mathrm{Tr}(-t)\,T$ ($t$ = 현재 TCP 위치).
+ *   좌곱만 하면 TCP가 base 원점을 중심으로 크게 휘어 이상하게 움직인다.
  * - **Tool 기준** — 델타를 TCP 자신의 좌표계에서 읽으므로 오른쪽에 곱한다(우곱):
  *   $T^{base}_{tool'} = T^{base}_{tool} \cdot \Delta$.
- *   TCP가 기울어져 있으면 그 기울어진 +X 방향으로 간다.
+ *   TCP가 기울어져 있으면 그 기울어진 +X 방향으로 가고, 회전은 자연히 TCP를 중심으로 돈다.
  *
  * Joint 조그는 여기 없다 — 관절각에 직접 더하고 FK만 다시 돌리면 되므로
  * 목표 pose도 IK도 필요 없다.
@@ -52,5 +56,18 @@ export function cartesianJogTarget(
   frame: JogReferenceFrame,
 ): Transform {
   const delta = jogDelta(step);
-  return frame === 'base' ? delta.compose(current) : current.compose(delta);
+  // Tool 기준 — 우곱. 병진·회전 모두 TCP 자신을 기준으로 (회전은 TCP 중심).
+  if (frame === 'tool') {
+    return current.compose(delta);
+  }
+  // Base 기준 병진 — 좌곱이면 World 축 방향으로 곧장 간다.
+  if (step.kind === 'translate') {
+    return delta.compose(current);
+  }
+  // Base 기준 회전 — 축은 World이되 회전 중심은 base 원점이 아니라 현재 TCP 위치.
+  // 그 점 둘레로 감싸지 않고 좌곱만 하면 TCP가 base를 중심으로 크게 휜다.
+  const t = current.translation;
+  const toPivot = Transform.fromTranslation(t);
+  const fromPivot = Transform.fromTranslation([-t[0], -t[1], -t[2]]);
+  return toPivot.compose(delta).compose(fromPivot).compose(current);
 }

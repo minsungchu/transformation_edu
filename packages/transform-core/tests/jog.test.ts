@@ -62,11 +62,12 @@ describe('cartesianJogTarget — Base(좌곱) vs Tool(우곱)', () => {
     );
   });
 
-  it('Base 기준 회전은 base 원점을 중심으로 TCP를 끌고 돈다', () => {
+  it('Base 기준 회전은 TCP 위치를 그대로 두고 World 축 기준으로 자세만 돌린다', () => {
     const current = tiltedTcp();
     const target = cartesianJogTarget(current, {kind: 'rotate', axis: [0, 0, 1], amount: 90 * DEG}, 'base');
-    // (1, 0, 0.5)를 world z축 기준 90° 돌리면 (0, 1, 0.5)
-    expectVec3Close(target.translation, [0, 1, 0.5]);
+    // 회전 중심은 base 원점이 아니라 TCP 자신 — 위치는 그대로.
+    expectVec3Close(target.translation, [1, 0, 0.5]);
+    // 자세는 World z축 90° 를 왼쪽에 얹어 총 180°.
     expectTransformClose(
       Transform.fromRotation(target.rotation),
       Transform.rotationZ(180 * DEG),
