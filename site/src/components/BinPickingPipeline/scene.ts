@@ -244,32 +244,31 @@ export function createPipelineScene(options: PipelineSceneOptions): PipelineScen
     sub: string;
     color: string;
     dashed: boolean;
-    /** 라벨 위치 (from→to 보간 비율). */
+    /** 라벨 위치 (from→to 보간 비율) — 화살표 선 위에 겹쳐 놓는다. */
     labelT: number;
-    labelOffset: readonly [number, number, number];
   }
   const specs: ArrowSpec[] = [
     // T_cal: World 원점 → Camera 원점 (calibration 결과)
     {from: worldOrigin, to: cameraOrigin, base: 'T', sup: '', sub: 'cal',
-     color: GRAY, dashed: true, labelT: 0.6, labelOffset: [0.08, 0.04, -0.02]},
+     color: GRAY, dashed: true, labelT: 0.6},
     // T_match: Scene 원점(= 카메라 원점) → 허공의 이동된 Master 원점
     {from: cameraOrigin, to: masterOrigin, base: 'T', sup: '', sub: 'match',
-     color: GRAY, dashed: true, labelT: 0.5, labelOffset: [0.09, 0, 0.03]},
+     color: GRAY, dashed: true, labelT: 0.5},
     // P^{camera}_{master}: 이동된 Master 원점 → Master의 picking point
     {from: masterOrigin, to: masterPick, base: 'P', sup: 'camera', sub: 'master',
-     color: GRAY, dashed: true, labelT: 0.8, labelOffset: [0.08, -0.02, -0.02]},
+     color: GRAY, dashed: true, labelT: 0.55},
     // P^{camera}_{scene}: Camera 원점(= Scene 이미지 원점) → Scene의 picking point
     {from: cameraOrigin, to: scenePick, base: 'P', sup: 'camera', sub: 'scene',
-     color: GRAY, dashed: true, labelT: 0.68, labelOffset: [0.12, 0.04, 0]},
+     color: GRAY, dashed: true, labelT: 0.68},
     // P^{world}_{scene}: World 원점 → Scene의 picking point — 유일한 파란 실선(최종 답)
     {from: worldOrigin, to: scenePick, base: 'P', sup: 'world', sub: 'scene',
-     color: BLUE, dashed: false, labelT: 0.35, labelOffset: [0.05, -0.12, -0.05]},
+     color: BLUE, dashed: false, labelT: 0.45},
   ];
   for (const spec of specs) {
     worldRoot.add(buildPipelineArrow(spec.from, spec.to, spec.color, spec.dashed));
+    // 라벨 anchor를 화살표 선 위(labelT 지점)에 정확히 올려 겹치게 한다.
     const anchor = new THREE.Object3D();
     anchor.position.lerpVectors(spec.from, spec.to, spec.labelT);
-    anchor.position.add(vec(spec.labelOffset));
     anchor.add(new CSS2DObject(buildMathLabel(spec.base, spec.sup, spec.sub, spec.color)));
     worldRoot.add(anchor);
   }
