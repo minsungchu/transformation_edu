@@ -43,21 +43,6 @@ export function buildCameraGlyph(): THREE.Group {
   return group;
 }
 
-export function buildCameraPost(cameraPosition: readonly [number, number, number]): THREE.Group {
-  const group = new THREE.Group();
-  const material = new THREE.MeshStandardMaterial({color: 0x9aa4ad, roughness: 0.8});
-  const height = cameraPosition[2] + 0.06;
-  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, height, 16), material);
-  post.rotation.x = Math.PI / 2; // 실린더 축(Y) → world +z
-  post.position.set(cameraPosition[0] + 0.12, cameraPosition[1], height / 2);
-  group.add(post);
-  const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.12, 12), material);
-  arm.rotation.z = Math.PI / 2; // 실린더 축(Y) → world +x
-  arm.position.set(cameraPosition[0] + 0.06, cameraPosition[1], cameraPosition[2] + 0.05);
-  group.add(arm);
-  return group;
-}
-
 /** 좌표계 축(RGB = x, y, z) 화살표 묶음. */
 export function buildFrameAxes(length: number): THREE.Group {
   const group = new THREE.Group();

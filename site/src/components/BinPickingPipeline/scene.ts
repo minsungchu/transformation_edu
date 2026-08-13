@@ -7,11 +7,12 @@
  * - Master / Scene 박스 — matching 완료 후 모습으로, Master 와이어프레임이
  *   Scene을 잔차 수준의 offset/회전만 남기고 감싼다 (reference DOCX 그림 2-8·2-9)
  * - 이미지 원점 — Master와 Scene의 이미지 원점은 원래 둘 다 카메라 원점과
- *   같다(카메라 자리에 점 + 라벨). matching으로 이동한 Master의 원점만
- *   겹쳐진 박스 위에 점 + 소형 축으로 따로 표시한다
+ *   같다(카메라 자리에 점 + 라벨). matching으로 이동한 Master의 원점은
+ *   콘텐츠와 함께 변환을 받아 일반적으로 물체 밖에 떨어지므로, 박스에서
+ *   분리된 허공에 점 + 소형 축으로 따로 표시한다 (reference DOCX 그림 2-8)
  * - 화살표 5종 — 전부 from-to 규칙(ADR-0001, 꼬리 = 기준 좌표계 원점).
- *   $T_{match}$는 Scene 원점(= 카메라 원점)에서 이동된 Master 원점으로,
- *   $P^{camera}_{master}$는 이동된 Master 원점에서 출발한다.
+ *   $T_{match}$는 Scene 원점(= 카메라 원점)에서 허공의 이동된 Master
+ *   원점으로, $P^{camera}_{master}$는 이동된 Master 원점에서 출발한다.
  *   점선 = 파이프라인의 중간 재료, 파란 실선 = 최종 답 $P^{world}_{scene}$
  *   (기존 2D SVG의 시각 언어 유지)
  *
@@ -27,7 +28,6 @@ import type {SceneRobotConfig} from '../RobotCellViewer/scene';
 import {
   applyTransform,
   buildCameraGlyph,
-  buildCameraPost,
   buildFrameAxes,
   buildMathLabel,
   buildTextLabel,
@@ -61,16 +61,14 @@ const PICK_LOCAL: readonly [number, number, number] = [0.145, 0.095, 0.12];
 
 /**
  * Master / Scene 물체 박스 — 반투명 몸체 + 와이어프레임 모서리.
- * 이미지 원점은 원래 카메라 원점과 같으므로 박스 자체에는 원점 표시가 없고,
- * matching으로 이동한 Master의 원점만 withOrigin으로 점 + 소형 축을 붙인다.
+ * 이미지 원점은 원래 카메라 원점과 같으므로 박스 자체에는 원점 표시가 없다.
+ * matching으로 이동한 Master의 원점은 물체 밖 허공에 buildOriginMarker로
+ * 따로 그린다.
  */
-function buildObjectBox(
-  color: string,
-  {withOrigin = false, bodyOpacity = 0.3}: {withOrigin?: boolean; bodyOpacity?: number} = {},
-): THREE.Group {
+function buildObjectBox(color: string, {bodyOpacity = 0.3}: {bodyOpacity?: number} = {}): THREE.Group {
   const group = new THREE.Group();
   const geometry = new THREE.BoxGeometry(BOX_SIZE[0], BOX_SIZE[1], BOX_SIZE[2]);
-  // 로컬 원점이 박스 바닥 모서리에 오도록 밀어 둔다 — 이동된 원점 = (0,0,0).
+  // 로컬 원점이 박스 바닥 모서리에 오도록 밀어 둔다.
   geometry.translate(BOX_SIZE[0] / 2, BOX_SIZE[1] / 2, BOX_SIZE[2] / 2);
   const body = new THREE.Mesh(
     geometry,
@@ -88,16 +86,19 @@ function buildObjectBox(
     new THREE.LineBasicMaterial({color}),
   );
   group.add(edges);
+  return group;
+}
 
-  if (withOrigin) {
-    const originDot = new THREE.Mesh(
-      new THREE.SphereGeometry(0.011, 16, 16),
-      new THREE.MeshBasicMaterial({color, depthTest: false}),
-    );
-    originDot.renderOrder = 10;
-    group.add(originDot);
-    group.add(buildFrameAxes(0.09));
-  }
+/** 이동된 이미지 원점 마커 — 점 + 소형 축. */
+function buildOriginMarker(color: string): THREE.Group {
+  const group = new THREE.Group();
+  const dot = new THREE.Mesh(
+    new THREE.SphereGeometry(0.011, 16, 16),
+    new THREE.MeshBasicMaterial({color, depthTest: false}),
+  );
+  dot.renderOrder = 10;
+  group.add(dot);
+  group.add(buildFrameAxes(0.09));
   return group;
 }
 
@@ -174,10 +175,10 @@ export function createPipelineScene(options: PipelineSceneOptions): PipelineScen
   const tWorldCamera = frames.getTransform(CELL_FRAMES.world, CELL_FRAMES.camera);
   const tWorldRobotBase = frames.getTransform(CELL_FRAMES.world, CELL_FRAMES.robotBase);
 
+  // 카메라는 공중의 고정 위치에 떠 있다 (기둥 mesh 없음).
   const cameraGlyph = buildCameraGlyph();
   applyTransform(cameraGlyph, tWorldCamera);
   worldRoot.add(cameraGlyph);
-  worldRoot.add(buildCameraPost(tWorldCamera.translation));
 
   // World / Camera 좌표계 축은 항상 켜 둔다 — 지도에서 두 원점이 기준점이다.
   const worldAxes = buildFrameAxes(0.34);
@@ -199,16 +200,26 @@ export function createPipelineScene(options: PipelineSceneOptions): PipelineScen
   const sceneBox = buildObjectBox(SCENE_BLUE);
   applyTransform(sceneBox, tWorldScene);
   worldRoot.add(sceneBox);
-  // Master는 몸체를 옅게 — 감싸인 Scene이 비쳐 보이도록. 이동된 원점 표시 포함.
-  const masterBox = buildObjectBox(MASTER_RED, {withOrigin: true, bodyOpacity: 0.12});
+  // Master는 몸체를 옅게 — 감싸인 Scene이 비쳐 보이도록.
+  const masterBox = buildObjectBox(MASTER_RED, {bodyOpacity: 0.12});
   applyTransform(masterBox, tWorldMaster);
   worldRoot.add(masterBox);
+
+  // 이동된 Master 이미지 원점 — 원점은 콘텐츠와 함께 변환을 받으므로
+  // 일반적으로 물체 밖에 떨어진다 (원본 그림 2-8의 초록 점). 카메라 원점의
+  // 오른쪽 아래, 박스의 오른쪽 위 허공에 두고 잔차 회전만 얹는다.
+  const tWorldMasterOrigin = Transform.fromTranslation([0.93, -0.18, 0.72]).compose(
+    Transform.rotationZ(-0.22),
+  );
+  const masterOriginMarker = buildOriginMarker(MASTER_RED);
+  applyTransform(masterOriginMarker, tWorldMasterOrigin);
+  worldRoot.add(masterOriginMarker);
 
   // ── 원점·점 위치 (world 좌표, z-up) ───────────────────────────────
   const vec = (p: readonly number[]): THREE.Vector3 => new THREE.Vector3(p[0], p[1], p[2]);
   const worldOrigin = new THREE.Vector3(0, 0, 0);
   const cameraOrigin = vec(tWorldCamera.translation);
-  const masterOrigin = vec(tWorldMaster.translation);
+  const masterOrigin = vec(tWorldMasterOrigin.translation);
   const masterPick = vec(tWorldMaster.transformPoint(PICK_LOCAL));
   const scenePick = vec(tWorldScene.transformPoint(PICK_LOCAL));
 
@@ -241,12 +252,12 @@ export function createPipelineScene(options: PipelineSceneOptions): PipelineScen
     // T_cal: World 원점 → Camera 원점 (calibration 결과)
     {from: worldOrigin, to: cameraOrigin, base: 'T', sup: '', sub: 'cal',
      color: GRAY, dashed: true, labelT: 0.6, labelOffset: [0.08, 0.04, -0.02]},
-    // T_match: Scene 원점(= 카메라 원점) → 이동된 Master 원점
+    // T_match: Scene 원점(= 카메라 원점) → 허공의 이동된 Master 원점
     {from: cameraOrigin, to: masterOrigin, base: 'T', sup: '', sub: 'match',
-     color: GRAY, dashed: true, labelT: 0.45, labelOffset: [-0.12, 0, 0]},
+     color: GRAY, dashed: true, labelT: 0.5, labelOffset: [0.09, 0, 0.03]},
     // P^{camera}_{master}: 이동된 Master 원점 → Master의 picking point
     {from: masterOrigin, to: masterPick, base: 'P', sup: 'camera', sub: 'master',
-     color: GRAY, dashed: true, labelT: 0.5, labelOffset: [0.02, -0.1, 0.03]},
+     color: GRAY, dashed: true, labelT: 0.8, labelOffset: [0.08, -0.02, -0.02]},
     // P^{camera}_{scene}: Camera 원점(= Scene 이미지 원점) → Scene의 picking point
     {from: cameraOrigin, to: scenePick, base: 'P', sup: 'camera', sub: 'scene',
      color: GRAY, dashed: true, labelT: 0.68, labelOffset: [0.12, 0.04, 0]},
@@ -270,7 +281,7 @@ export function createPipelineScene(options: PipelineSceneOptions): PipelineScen
     [[0.32, 0.06, 1.3], '이미지 원점 (원래 위치)', '#e7ecf3'],
     [[0.05, 0.1, 0.24], 'Master', MASTER_RED],
     [[0.24, 0.1, -0.05], 'Scene', SCENE_BLUE],
-    [[-0.06, -0.09, 0.0], '이동된 Master 원점', MASTER_RED],
+    [[0.05, 0, -0.09], '이동된 Master 원점', MASTER_RED],
   ];
   const [worldName, cameraName, imageOriginName, masterName, sceneName, masterOriginName] =
     nameLabels.map(([position, text, color]) => {
@@ -282,10 +293,11 @@ export function createPipelineScene(options: PipelineSceneOptions): PipelineScen
   worldRoot.add(worldName!);
   worldRoot.add(cameraName!);
   worldRoot.add(imageOriginName!);
-  // Master/Scene 이름표와 이동된 원점 라벨은 박스에 붙여 로컬 좌표로 띄운다.
+  // Master/Scene 이름표는 박스에, 이동된 원점 라벨은 허공의 마커에 붙여
+  // 로컬 좌표로 띄운다.
   masterBox.add(masterName!);
   sceneBox.add(sceneName!);
-  masterBox.add(masterOriginName!);
+  masterOriginMarker.add(masterOriginName!);
 
   // ── 로봇 (World 좌표계의 주인) ────────────────────────────────────
   let disposed = false;

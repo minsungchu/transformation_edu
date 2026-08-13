@@ -47,7 +47,7 @@ import BinPickingPipeline from '@site/src/components/BinPickingPipeline';
   - 의미: World 좌표계와 Camera 좌표계 사이의 관계 $T^{world}_{camera}$
 - $T_{match}$ — **Matching의 결과**
   - 의미: Scene의 원점에서 이동된 Master의 원점으로의 변환
-  - 이동: Matching이 Master의 원점을 이동시킴 — 그림의 겹쳐진 두 박스와 이동된 Master 원점(점 + 소형 축)
+  - 이동: Matching이 Master의 원점을 이동시킴 — 원점은 콘텐츠와 함께 변환을 받으므로 물체 밖 허공에 떨어짐 (그림의 점 + 소형 축)
   - 역할: 미리 정의해 둔 집을 점 $P^{camera}_{master}$를 실제 물체의 점 $P^{camera}_{scene}$으로 옮김
 - $P^{world}_{scene}$ — **최종 답**
   - 의미: World 좌표계, 즉 로봇 기준으로 표현된 실제로 집어야 할 점

@@ -18,7 +18,6 @@ import {ARROW_DEFS} from './types';
 import {
   applyTransform,
   buildCameraGlyph,
-  buildCameraPost,
   buildFrameAxes,
   buildMathLabel,
   buildTextLabel,
@@ -98,11 +97,10 @@ export function createRobotCellScene(options: RobotCellSceneOptions): RobotCellS
   userFrameMarker.add(userFrameLabel);
   worldRoot.add(userFrameMarker);
 
+  // Post Mount 카메라는 공중의 고정 위치에 떠 있다 (기둥 mesh 없음).
   const cameraGlyph = buildCameraGlyph();
   applyTransform(cameraGlyph, tWorldCamera);
   worldRoot.add(cameraGlyph);
-  const cameraPost = buildCameraPost(tWorldCamera.translation);
-  worldRoot.add(cameraPost);
 
   // ── 프레임 anchor: 화살표/축이 참조하는 원점 Object3D ─────────────
   const worldAnchor = new THREE.Group();
@@ -207,11 +205,9 @@ export function createRobotCellScene(options: RobotCellSceneOptions): RobotCellS
       }
       applyTransform(cameraGlyph, tFlangeCamera);
       flange.add(cameraGlyph);
-      cameraPost.visible = false;
     } else {
       applyTransform(cameraGlyph, tWorldCamera);
       worldRoot.add(cameraGlyph);
-      cameraPost.visible = true;
     }
   };
 
