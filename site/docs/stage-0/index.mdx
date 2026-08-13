@@ -44,7 +44,8 @@ import BinPickingPipeline from '@site/src/components/BinPickingPipeline';
   - Scene: 공정 중에 실제로 촬영한 이미지
   - 원점: 두 이미지의 원점은 원래 카메라 원점과 같음 — 그림의 카메라 자리 이미지 원점 점
 - $T_{cal}$ — **Calibration의 결과**
-  - 의미: World 좌표계와 Camera 좌표계 사이의 관계 $T^{world}_{camera}$
+  - 의미: World 좌표계(로봇 원점)에서 바라본 Camera 좌표계(카메라 원점)의 위치 $T^{world}_{camera}$
+  - 역할: Camera 좌표계의 한 점을 World(로봇 원점) 기준 좌표로 변환할 때 사용
 - $T_{match}$ — **Matching의 결과**
   - 의미: Scene의 원점에서 이동된 Master의 원점으로의 변환
   - 이동: Matching이 Master의 원점을 이동시킴 — 원점은 콘텐츠와 함께 변환을 받으므로 물체 밖 허공에 떨어짐 (그림의 점 + 소형 축)
