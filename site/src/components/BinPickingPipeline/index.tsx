@@ -15,13 +15,17 @@
  * Cartesian 모드에서는 해당 기준 좌표계의 축을 씬에 함께 그린다. 플랜지에
  * 석션 그리퍼가 달려 있어 Flange(6축 원점)와 TCP(그리퍼 끝단)가 그리퍼
  * 길이만큼 떨어져 있고, 회전 조그를 눌러 보면 회전중심 차이가 그대로 드러난다.
+ *
+ * 툴바 조그와 별개로 씬 안에서 직접 끄는 free 드래그도 있다 — 손목의 구체
+ * 핸들을 잡아 끌면 팔이 실시간으로 따라온다. 두 조작은 같은 관절 상태를
+ * 공유하므로 섞어 써도 된다.
  */
 import React, {useEffect, useMemo, useRef, useState, type ReactNode} from 'react';
 import useBaseUrl from '@docusaurus/useBaseUrl';
 import type {CartesianJogStep, Vec3} from 'transform-core';
 import {DEFAULT_ROBOT, ROBOT_MODELS} from '../RobotCellViewer/robots';
 import {FullscreenButton, useViewerFullscreen} from '../RobotCellViewer/fullscreen';
-import type {JogMode, PipelineScene} from './scene';
+import type {FreeDragState, JogMode, PipelineScene} from './scene';
 import styles from '../RobotCellViewer/styles.module.css';
 
 const DEG = Math.PI / 180;
@@ -67,6 +71,17 @@ const CARTESIAN_AXES: {label: string; kind: CartesianJogStep['kind']; axis: Vec3
   {label: 'Ry', kind: 'rotate', axis: [0, 1, 0]},
   {label: 'Rz', kind: 'rotate', axis: [0, 0, 1]},
 ];
+
+/**
+ * free 드래그 상태별 안내문 — 드래그 중에는 지금 손이 가 있는 조작이므로
+ * 툴바 조그 힌트 대신 이쪽을 보여 준다.
+ */
+const FREE_DRAG_NOTES: Partial<Record<FreeDragState, string>> = {
+  dragging:
+    '손목 핸들을 끄는 중 — 목표를 화면(카메라) 평면 위에서 옮기고 매 프레임 IK를 풀어 따라갑니다. 관절 상태는 툴바 조그와 그대로 공유됩니다.',
+  blocked:
+    '도달 범위 밖입니다 — IK가 수렴하지 못하는 목표는 무시하고 마지막 유효 자세를 유지합니다.',
+};
 
 /** 스텝 크기 선택지 — 병진(mm) / 회전(°). */
 const LINEAR_STEPS_MM = [5, 20, 50];
@@ -155,6 +170,7 @@ export default function BinPickingPipeline({height}: {height?: number} = {}): Re
   const [angularStepDeg, setAngularStepDeg] = useState(5);
   const [jointStepDeg, setJointStepDeg] = useState(5);
   const [jogWarning, setJogWarning] = useState('');
+  const [freeDrag, setFreeDrag] = useState<FreeDragState>('idle');
 
   const model = ROBOT_MODELS[DEFAULT_ROBOT];
   const siteBase = useBaseUrl('/');
@@ -190,6 +206,7 @@ export default function BinPickingPipeline({height}: {height?: number} = {}): Re
           container,
           robot: config,
           initialJogMode: jogMode,
+          onFreeDrag: setFreeDrag,
           onReady: () => setStatus('ready'),
           onError: (error) => {
             setErrorMessage(error instanceof Error ? error.message : String(error));
@@ -242,6 +259,9 @@ export default function BinPickingPipeline({height}: {height?: number} = {}): Re
   };
 
   const activeHint = JOG_MODES.find((m) => m.id === jogMode)?.hint ?? '';
+  const freeDragNote = FREE_DRAG_NOTES[freeDrag] ?? '';
+  const noteText = freeDragNote || jogWarning || activeHint;
+  const noteWarn = freeDrag === 'blocked' || (!freeDragNote && jogWarning !== '');
 
   return (
     <figure
@@ -253,7 +273,7 @@ export default function BinPickingPipeline({height}: {height?: number} = {}): Re
         className={styles.container}
         style={isFullscreen || !height ? undefined : {height}}
         role="img"
-        aria-label="Bin picking 파이프라인 개요 3D 씬: World 좌표계(로봇)에서 Camera 좌표계로의 T_cal, 카메라 원점 자리의 Master·Scene 이미지 원점, Scene을 감싸며 겹쳐진 Master와 박스 옆 허공에 떨어진 이동된 Master 원점, Scene 원점(카메라)에서 이동된 Master 원점으로의 T_match, 그리고 최종 답 P world scene. 로봇 플랜지에는 석션 그리퍼가 달려 있고 패드 끝단이 TCP다">
+        aria-label="Bin picking 파이프라인 개요 3D 씬: World 좌표계(로봇)에서 Camera 좌표계로의 T_cal, 카메라 원점 자리의 Master·Scene 이미지 원점, Scene을 감싸며 겹쳐진 Master와 박스 옆 허공에 떨어진 이동된 Master 원점, Scene 원점(카메라)에서 이동된 Master 원점으로의 T_match, 그리고 최종 답 P world scene. 로봇 플랜지에는 석션 그리퍼가 달려 있고 패드 끝단이 TCP다. 손목에는 마우스로 끌어 팔을 자유롭게 움직일 수 있는 노란 구체 드래그 핸들이 붙어 있다">
         {status === 'loading' && <div className={styles.overlay}>파이프라인 씬 불러오는 중…</div>}
         {status === 'error' && (
           <div className={`${styles.overlay} ${styles.error}`}>
@@ -261,7 +281,10 @@ export default function BinPickingPipeline({height}: {height?: number} = {}): Re
           </div>
         )}
         {status === 'ready' && (
-          <div className={styles.hint}>드래그: 회전 · 휠: 확대/축소 · 우클릭 드래그: 이동</div>
+          <div className={styles.hint}>
+            손목의 노란 구체 드래그: 팔 자유 이동 · 빈 공간 드래그: 회전 · 휠: 확대/축소 ·
+            우클릭 드래그: 이동
+          </div>
         )}
       </div>
       {/* role="img" 컨테이너 안에 두면 보조기기에 presentational로 숨겨지므로 형제로 둔다. */}
@@ -347,9 +370,7 @@ export default function BinPickingPipeline({height}: {height?: number} = {}): Re
             초기 자세
           </button>
         </div>
-        <p className={`${styles.jogNote}${jogWarning ? ` ${styles.jogWarn}` : ''}`}>
-          {jogWarning || activeHint}
-        </p>
+        <p className={`${styles.jogNote}${noteWarn ? ` ${styles.jogWarn}` : ''}`}>{noteText}</p>
       </div>
       <figcaption style={{fontSize: '0.85rem', opacity: 0.75, marginTop: '0.5rem', textAlign: 'center'}}>
         Bin picking 파이프라인 개요 — Master와 Scene의 이미지 원점은 원래
@@ -362,7 +383,9 @@ export default function BinPickingPipeline({height}: {height?: number} = {}): Re
         전부 World·Camera·Scene에 고정된 관계이기 때문이다. 플랜지에 달린 석션
         그리퍼의 패드 끝단이 TCP이며, 회전(Rx·Ry·Rz) 조그를 Flange 기준과 TCP
         기준으로 각각 눌러 보면 회전중심이 6축 원점인지 그리퍼 끝단인지에 따라
-        팔이 다르게 움직이는 것을 볼 수 있다.
+        팔이 다르게 움직이는 것을 볼 수 있다. 손목의 노란 구체를 마우스로 끌면
+        축·스텝을 고르지 않고도 팔을 자유롭게 움직일 수 있다 — 매 프레임 IK를
+        풀어 따라오며, 도달 범위를 벗어난 목표는 무시하고 마지막 자세를 유지한다.
       </figcaption>
     </figure>
   );

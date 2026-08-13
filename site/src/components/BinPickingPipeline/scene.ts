@@ -29,12 +29,17 @@
  * Camera/Scene에 고정이므로 그대로 남는다. Cartesian 조그는
  * FK(플랜지) → 기준 좌표계에서 델타 적용 → 목표 플랜지 pose → DLS
  * IK(transform-core) 순서로 풀고, Joint 조그는 관절값에 바로 더한다.
+ *
+ * 툴바 조그와 나란히 **free 드래그**도 있다 — 손목(6축 원점)에 붙은 구체 핸들을
+ * 마우스로 끌면 매 프레임 IK를 풀어 팔이 따라온다. 툴바 조그가 "축 하나를 정해진
+ * 스텝만큼" 미는 이산 조작이라면 이쪽은 연속 조작이고, 둘은 같은 `jointValues`를
+ * 공유하므로 섞어 써도 상태가 어긋나지 않는다.
  */
 import * as THREE from 'three';
 import {CSS2DObject} from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import URDFLoader from 'urdf-loader';
 import type {URDFRobot} from 'urdf-loader';
-import type {CartesianJogStep, JogControlFrame, KinematicChain} from 'transform-core';
+import type {CartesianJogStep, JogControlFrame, KinematicChain, Vec3} from 'transform-core';
 import {Transform, jogTargetFlangePose, solveIk} from 'transform-core';
 import {CELL_FRAMES, DEFAULT_CELL, createCellLayout} from '../RobotCellViewer/cell-layout';
 import type {SceneRobotConfig} from '../RobotCellViewer/scene';
@@ -51,11 +56,22 @@ import {
 /** 조그 기준 — Cartesian 세 가지(Base/Flange/TCP) + 관절 직접 구동. */
 export type JogMode = JogControlFrame | 'joint';
 
+/**
+ * free 드래그의 현재 상태 — 툴바 안내문을 바꾸는 데만 쓴다.
+ *
+ * - `'idle'` — 아무도 핸들을 잡고 있지 않다.
+ * - `'dragging'` — 핸들을 끄는 중이고 팔이 따라오고 있다.
+ * - `'blocked'` — 끄는 중이지만 목표가 도달 범위 밖이라 자세를 유지하고 있다.
+ */
+export type FreeDragState = 'idle' | 'dragging' | 'blocked';
+
 export interface PipelineSceneOptions {
   container: HTMLElement;
   robot: SceneRobotConfig;
   /** 처음 켜 둘 조그 모드 (기준 좌표계 축 표시에 쓰인다). */
   initialJogMode?: JogMode;
+  /** free 드래그 상태가 **바뀔 때만** 불린다 (매 프레임이 아니다). */
+  onFreeDrag?: (state: FreeDragState) => void;
   onReady?: () => void;
   onError?: (error: unknown) => void;
 }
@@ -108,6 +124,54 @@ const SUCTION_PAD_RADIUS = 0.038;
  */
 const TOOL_LENGTH = GRIPPER_PLATE_HEIGHT + GRIPPER_BODY_LENGTH + SUCTION_PAD_HEIGHT;
 const T_FLANGE_TCP = Transform.fromTranslation([0, 0, TOOL_LENGTH]);
+
+// ── free 드래그 핸들 ──────────────────────────────────────────────────
+/** 손목 핸들 구체의 반지름 (m) — 마운팅 플레이트를 덮을 만큼 크게 잡아야 집기 쉽다. */
+const HANDLE_RADIUS = 0.058;
+/** 조그 기준 축과 같은 노란색 계열 — "사람이 미는 것" 표시. */
+const HANDLE_COLOR = '#f5c451';
+/** 한 프레임에 쫓아갈 위치 오차의 상한 (m) — 커서가 멀리 있어도 팔이 튀지 않는다. */
+const FOLLOW_MAX_STEP = 0.03;
+/** 이만큼 연속으로 IK가 실패해야 "도달 범위 밖"으로 알린다 (경계에서의 깜빡임 방지). */
+const BLOCKED_STREAK = 3;
+
+interface DragHandle {
+  /** 플랜지 링크에 매다는 묶음. */
+  group: THREE.Group;
+  /** 레이캐스트 대상 — 중심이 곧 플랜지 원점이다. */
+  sphere: THREE.Mesh;
+  material: THREE.MeshStandardMaterial;
+  /** hover·드래그 중에만 뜨는 안내 라벨. */
+  label: CSS2DObject;
+}
+
+/**
+ * free 드래그 핸들 — 손목(6축 원점)에 씌우는 반투명 구체.
+ *
+ * 구체의 중심을 플랜지 원점에 정확히 맞춰 두면 "핸들을 끌어간 자리"가 그대로
+ * IK의 목표 플랜지 위치가 된다 (오프셋을 되돌리는 계산이 필요 없다).
+ */
+function buildDragHandle(): DragHandle {
+  const group = new THREE.Group();
+  const material = new THREE.MeshStandardMaterial({
+    color: HANDLE_COLOR,
+    emissive: HANDLE_COLOR,
+    emissiveIntensity: 0.4,
+    transparent: true,
+    opacity: 0.42,
+    roughness: 0.3,
+    depthWrite: false,
+  });
+  const sphere = new THREE.Mesh(new THREE.SphereGeometry(HANDLE_RADIUS, 28, 20), material);
+  sphere.renderOrder = 9;
+  group.add(sphere);
+
+  const label = new CSS2DObject(buildTextLabel('끌어서 이동', HANDLE_COLOR));
+  label.position.set(0, 0, HANDLE_RADIUS + 0.04);
+  label.visible = false;
+  group.add(label);
+  return {group, sphere, material, label};
+}
 
 /**
  * 플랜지에 장착하는 석션 그리퍼 — 마운팅 플레이트 + 원기둥 몸통 + 석션 패드.
@@ -249,13 +313,22 @@ function buildPipelineArrow(
 }
 
 export function createPipelineScene(options: PipelineSceneOptions): PipelineScene {
-  const {container, robot: robotConfig, initialJogMode = 'base', onReady, onError} = options;
+  const {
+    container,
+    robot: robotConfig,
+    initialJogMode = 'base',
+    onFreeDrag,
+    onReady,
+    onError,
+  } = options;
 
   const shell = createViewerShell({
     container,
     // 로봇(World 원점) · 카메라 · 공중의 박스가 함께 보이는 시점.
     cameraPosition: [-0.45, 1.55, 2.35],
     target: [0.35, 0.62, 0],
+    // 첫 프레임이 rAF로 미뤄지므로 아래에서 정의하는 followFrame을 참조해도 안전하다.
+    onBeforeRender: () => followFrame(),
   });
   const {worldRoot} = shell;
 
@@ -421,6 +494,10 @@ export function createPipelineScene(options: PipelineSceneOptions): PipelineScen
   };
   applyJogMode();
 
+  // free 드래그 핸들은 IK 체인이 준비된 뒤에만 켠다 (체인이 없으면 끌 수 없다).
+  const handle = buildDragHandle();
+  handle.group.visible = false;
+
   // ── 로봇 (World 좌표계의 주인) + 조그 상태 ────────────────────────
   let disposed = false;
   let robot: URDFRobot | null = null;
@@ -477,6 +554,7 @@ export function createPipelineScene(options: PipelineSceneOptions): PipelineScen
       flangeLink.add(buildSuctionGripper());
       flangeLink.add(flangeJogAxes);
       flangeLink.add(tcpJogAxes);
+      flangeLink.add(handle.group);
     }
     try {
       chain = urdfSerialChain(robot, robotConfig.frameLinks.tool);
@@ -484,8 +562,196 @@ export function createPipelineScene(options: PipelineSceneOptions): PipelineScen
       // 체인을 못 세우면 Cartesian 조그만 비활성이고 나머지 씬은 정상이다.
       console.warn('IK 체인을 만들지 못해 Cartesian 조그를 끕니다:', error);
     }
+    // 핸들도 IK가 있어야 의미가 있으므로 체인과 운명을 같이한다.
+    handle.group.visible = chain !== null && flangeLink !== undefined;
     applyJogMode();
   });
+
+  // ── free 드래그 조그 ──────────────────────────────────────────────
+  // 손목 핸들을 끌면 매 프레임 "위치만 바뀐 플랜지 목표"를 IK로 푼다. 자세는 잡은
+  // 순간 값으로 고정해 두어(순수 위치 드래그) 끌려오는 동안 손목이 제멋대로 돌지
+  // 않는다. 목표점은 시선에 수직인 평면 위에서 움직이므로 깊이는 잡은 순간 그대로다.
+  const tRobotBaseWorld = tWorldRobotBase.inverse();
+  const raycaster = new THREE.Raycaster();
+  const pointerNdc = new THREE.Vector2();
+  const dragPlane = new THREE.Plane();
+  /** 핸들 중심 − 첫 클릭 지점 — 잡는 순간 핸들이 커서로 순간이동하지 않게 한다. */
+  const grabOffset = new THREE.Vector3();
+  const planeHit = new THREE.Vector3();
+  const scratch = new THREE.Vector3();
+
+  let hovering = false;
+  let dragging = false;
+  let dragPointerId: number | null = null;
+  /** 드래그 목표 — 로봇 base 좌표계에서 본 플랜지 원점 위치. */
+  let followGoal: Vec3 | null = null;
+  /** 잡은 순간의 플랜지 pose — 드래그 내내 그 **자세**를 목표로 유지한다. */
+  let grabbedPose: Transform | null = null;
+  let failStreak = 0;
+  let reportedState: FreeDragState = 'idle';
+
+  const reportState = (state: FreeDragState): void => {
+    if (state !== reportedState) {
+      reportedState = state;
+      onFreeDrag?.(state);
+    }
+  };
+
+  const applyHandleStyle = (): void => {
+    const active = dragging || hovering;
+    handle.material.opacity = active ? 0.7 : 0.42;
+    handle.material.emissiveIntensity = active ? 0.95 : 0.4;
+    handle.sphere.scale.setScalar(active ? 1.1 : 1);
+    handle.label.visible = active;
+    shell.domElement.style.cursor = dragging ? 'grabbing' : hovering ? 'grab' : '';
+  };
+
+  /** 포인터 위치에서 카메라 레이를 세운다. 핸들이 아직 없으면 아무것도 하지 않는다. */
+  const castFrom = (event: PointerEvent): boolean => {
+    // Raycaster는 visible을 보지 않으므로 여기서 직접 걸러 준다.
+    if (!handle.group.visible) {
+      return false;
+    }
+    const rect = shell.domElement.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) {
+      return false;
+    }
+    pointerNdc.set(
+      ((event.clientX - rect.left) / rect.width) * 2 - 1,
+      -((event.clientY - rect.top) / rect.height) * 2 + 1,
+    );
+    raycaster.setFromCamera(pointerNdc, shell.viewCamera);
+    return true;
+  };
+
+  const hitsHandle = (event: PointerEvent): boolean =>
+    castFrom(event) && raycaster.intersectObject(handle.sphere, false).length > 0;
+
+  /** three.js world 좌표(y-up) → 로봇 base 좌표 — IK 목표는 base 기준이다. */
+  const toBaseFrame = (point: THREE.Vector3): Vec3 => {
+    const local = worldRoot.worldToLocal(scratch.copy(point));
+    return tRobotBaseWorld.transformPoint([local.x, local.y, local.z]);
+  };
+
+  const onDragMove = (event: PointerEvent): void => {
+    if (!dragging || event.pointerId !== dragPointerId || !castFrom(event)) {
+      return;
+    }
+    if (raycaster.ray.intersectPlane(dragPlane, planeHit)) {
+      followGoal = toBaseFrame(planeHit.add(grabOffset));
+    }
+  };
+
+  const endDrag = (): void => {
+    if (!dragging) {
+      return;
+    }
+    dragging = false;
+    dragPointerId = null;
+    followGoal = null;
+    grabbedPose = null;
+    failStreak = 0;
+    shell.controls.enabled = true;
+    window.removeEventListener('pointermove', onDragMove);
+    window.removeEventListener('pointerup', endDrag);
+    window.removeEventListener('pointercancel', endDrag);
+    applyHandleStyle();
+    reportState('idle');
+  };
+
+  const onPointerDown = (event: PointerEvent): void => {
+    if (dragging || event.button !== 0 || !chain || !hitsHandle(event)) {
+      return; // 빈 공간이면 그대로 흘려보내 OrbitControls가 궤도 회전을 맡는다
+    }
+    // 컨테이너의 **캡처 단계**라 캔버스에 붙은 OrbitControls 리스너보다 먼저 돈다 —
+    // 여기서 전파를 끊어야 드래그와 궤도 회전이 동시에 걸리지 않는다.
+    event.stopPropagation();
+    event.preventDefault();
+    dragging = true;
+    dragPointerId = event.pointerId;
+    shell.controls.enabled = false;
+    grabbedPose = chain.fk(jointValues);
+
+    const handleWorld = handle.sphere.getWorldPosition(new THREE.Vector3());
+    dragPlane.setFromNormalAndCoplanarPoint(
+      shell.viewCamera.getWorldDirection(new THREE.Vector3()),
+      handleWorld,
+    );
+    grabOffset.set(0, 0, 0);
+    if (raycaster.ray.intersectPlane(dragPlane, planeHit)) {
+      grabOffset.subVectors(handleWorld, planeHit);
+    }
+    followGoal = toBaseFrame(handleWorld);
+    failStreak = 0;
+
+    window.addEventListener('pointermove', onDragMove);
+    window.addEventListener('pointerup', endDrag);
+    window.addEventListener('pointercancel', endDrag);
+    applyHandleStyle();
+    reportState('dragging');
+  };
+
+  const onHoverMove = (event: PointerEvent): void => {
+    if (dragging) {
+      return;
+    }
+    const next = hitsHandle(event);
+    if (next !== hovering) {
+      hovering = next;
+      applyHandleStyle();
+    }
+  };
+
+  const onPointerLeave = (): void => {
+    if (!dragging && hovering) {
+      hovering = false;
+      applyHandleStyle();
+    }
+  };
+
+  container.addEventListener('pointerdown', onPointerDown, true);
+  shell.domElement.addEventListener('pointermove', onHoverMove);
+  shell.domElement.addEventListener('pointerleave', onPointerLeave);
+
+  /**
+   * 드래그 한 프레임 — 목표까지의 거리를 잘라 조금씩 쫓아간다.
+   *
+   * 한 걸음이 작아야 IK의 선형화가 유효하고, 도달 범위 밖이면 그 작은 걸음조차
+   * 수렴하지 못해 경계에서 저절로 멈춘다. 실패한 프레임은 통째로 버리므로
+   * 관절값은 마지막 유효 자세 그대로 남는다.
+   */
+  const followFrame = (): void => {
+    if (!dragging || !robot || !chain || !followGoal || !grabbedPose) {
+      return;
+    }
+    const from = chain.fk(jointValues).translation;
+    const dx = followGoal[0] - from[0];
+    const dy = followGoal[1] - from[1];
+    const dz = followGoal[2] - from[2];
+    const distance = Math.hypot(dx, dy, dz);
+    if (distance < 1e-4) {
+      failStreak = 0;
+      reportState('dragging');
+      return;
+    }
+    const scale = distance > FOLLOW_MAX_STEP ? FOLLOW_MAX_STEP / distance : 1;
+    const goal: Vec3 = [from[0] + dx * scale, from[1] + dy * scale, from[2] + dz * scale];
+    // 자세는 잡은 순간 그대로, 위치만 목표로 — 순수 위치 드래그.
+    const result = solveIk(chain, new Transform(grabbedPose.rotation, goal), jointValues, {
+      maxIterations: 40,
+    });
+    if (!result.converged) {
+      failStreak += 1;
+      if (failStreak >= BLOCKED_STREAK) {
+        reportState('blocked');
+      }
+      return;
+    }
+    failStreak = 0;
+    Object.assign(jointValues, result.values);
+    applyJointValues();
+    reportState('dragging');
+  };
 
   return {
     setJogMode: (mode) => {
@@ -527,6 +793,10 @@ export function createPipelineScene(options: PipelineSceneOptions): PipelineScen
     },
     dispose: () => {
       disposed = true;
+      endDrag(); // 드래그 도중 언마운트되어도 window 리스너가 남지 않게
+      container.removeEventListener('pointerdown', onPointerDown, true);
+      shell.domElement.removeEventListener('pointermove', onHoverMove);
+      shell.domElement.removeEventListener('pointerleave', onPointerLeave);
       shell.dispose();
     },
   };

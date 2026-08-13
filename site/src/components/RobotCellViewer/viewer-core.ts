@@ -133,6 +133,12 @@ export interface ViewerShell {
   scene: THREE.Scene;
   /** world 좌표계(z-up, 로보틱스 규약)를 three.js(y-up)로 얹는 루트 — 셀 내용은 여기에 붙인다. */
   worldRoot: THREE.Group;
+  /** 보는 눈 — 레이캐스트와 화면 평면 투영의 기준이라 씬 쪽에서도 필요하다. */
+  viewCamera: THREE.PerspectiveCamera;
+  /** 궤도 조작 — 씬 안의 드래그 상호작용이 진행되는 동안 잠시 꺼 둘 수 있다. */
+  controls: OrbitControls;
+  /** WebGL 캔버스 — 포인터 좌표 → NDC 변환과 커서 모양의 기준. */
+  domElement: HTMLCanvasElement;
   dispose: () => void;
 }
 
@@ -212,6 +218,9 @@ export function createViewerShell({
   return {
     scene,
     worldRoot,
+    viewCamera,
+    controls,
+    domElement: renderer.domElement,
     dispose: () => {
       cancelAnimationFrame(frameHandle);
       resizeObserver.disconnect();
