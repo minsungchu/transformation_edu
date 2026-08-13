@@ -338,10 +338,10 @@ export default function BinPickingPipeline({height}: {height?: number} = {}): Re
         </p>
       </div>
       <figcaption style={{fontSize: '0.85rem', opacity: 0.75, marginTop: '0.5rem', textAlign: 'center'}}>
-        Bin picking 파이프라인 개요 — 이 교재의 표기법(ADR-0001)으로 그린 3D 씬.
-        Master와 Scene의 이미지 원점은 원래 카메라 원점과 같고, Matching이
-        Master의 원점을 이동시켜 두 박스가 겹쳐진다. 이동된 원점은 콘텐츠와
-        함께 변환을 받아 물체 밖 허공에 떨어지고, T_match는 Scene
+        Bin picking 파이프라인 개요 — Master와 Scene의 이미지 원점은 원래
+        카메라 원점과 같고, Matching이 Master의 원점을 이동시켜 두 박스가
+        겹쳐진다. 이동된 원점은 Master와 함께 변환을 받아 물체 밖 허공에
+        떨어지고, T_match는 Scene
         원점(카메라 자리)에서 그 이동된 Master 원점으로 향한다. 점선은
         파이프라인의 중간 재료, 파란 실선은 로봇에게 최종적으로 필요한 답이다.
         툴바의 조그로 로봇 팔을 움직여 봐도 이 화살표·박스는 제자리에 남는다 —
