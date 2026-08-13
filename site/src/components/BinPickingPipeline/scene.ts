@@ -19,17 +19,23 @@
  * 박스 pose와 점 위치는 transform-core로 계산하고, 렌더링 레이어는 결과를
  * 그리기만 한다.
  *
+ * 플랜지에는 석션 그리퍼(원기둥 몸통 + 석션 패드)가 붙어 있다. 그리퍼는 플랜지
+ * 링크의 자식이라 로봇과 함께 움직이고, 패드 끝단이 **TCP**다. 즉 IK가 푸는
+ * 체인의 끝점(플랜지)과 사람이 조그하려는 점(TCP)이 그리퍼 길이만큼 어긋나 있고,
+ * 그 고정 오프셋 $T^{flange}_{tcp}$를 transform-core의 `jogTargetFlangePose`가
+ * 처리한다.
+ *
  * 여기에 조그(jog)도 얹는다 — 로봇 팔만 움직이고 파이프라인 지도 요소는 World/
  * Camera/Scene에 고정이므로 그대로 남는다. Cartesian 조그는
- * FK → 기준 좌표계에서 델타 적용 → DLS IK(transform-core) 순서로 풀고,
- * Joint 조그는 관절값에 바로 더한다.
+ * FK(플랜지) → 기준 좌표계에서 델타 적용 → 목표 플랜지 pose → DLS
+ * IK(transform-core) 순서로 풀고, Joint 조그는 관절값에 바로 더한다.
  */
 import * as THREE from 'three';
 import {CSS2DObject} from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import URDFLoader from 'urdf-loader';
 import type {URDFRobot} from 'urdf-loader';
-import type {CartesianJogStep, JogReferenceFrame, KinematicChain} from 'transform-core';
-import {Transform, cartesianJogTarget, solveIk} from 'transform-core';
+import type {CartesianJogStep, JogControlFrame, KinematicChain} from 'transform-core';
+import {Transform, jogTargetFlangePose, solveIk} from 'transform-core';
 import {CELL_FRAMES, DEFAULT_CELL, createCellLayout} from '../RobotCellViewer/cell-layout';
 import type {SceneRobotConfig} from '../RobotCellViewer/scene';
 import {urdfSerialChain} from '../RobotCellViewer/urdf-chain';
@@ -42,8 +48,8 @@ import {
   createViewerShell,
 } from '../RobotCellViewer/viewer-core';
 
-/** 조그 기준 — Cartesian 두 가지 + 관절 직접 구동. */
-export type JogMode = JogReferenceFrame | 'joint';
+/** 조그 기준 — Cartesian 세 가지(Base/Flange/TCP) + 관절 직접 구동. */
+export type JogMode = JogControlFrame | 'joint';
 
 export interface PipelineSceneOptions {
   container: HTMLElement;
@@ -58,10 +64,11 @@ export interface PipelineScene {
   /** 조그 기준 좌표계 축 표시를 모드에 맞게 바꾼다. */
   setJogMode: (mode: JogMode) => void;
   /**
-   * Cartesian 조그 — 기준 좌표계에서 델타를 적용한 목표 pose를 IK로 푼다.
+   * Cartesian 조그 — 기준 좌표계에서 델타를 적용한 목표 **플랜지** pose를 IK로
+   * 푼다 (Base/TCP 모드는 TCP 목표를 플랜지 목표로 되돌린 뒤 넘긴다).
    * 수렴하지 못하면(싱귤래리티·도달 불가) 자세를 그대로 두고 false를 돌려준다.
    */
-  jogCartesian: (frame: JogReferenceFrame, step: CartesianJogStep) => boolean;
+  jogCartesian: (frame: JogControlFrame, step: CartesianJogStep) => boolean;
   /** Joint 조그 — 관절값에 델타를 더하고 FK만 다시 돌린다 (IK 불필요). */
   jogJoint: (jointName: string, delta: number) => boolean;
   /** 초기 자세로 되돌린다. */
@@ -82,6 +89,64 @@ const BOX_SIZE: readonly [number, number, number] = [0.2, 0.15, 0.12];
 const BOX_ALTITUDE = 0.35;
 /** 박스 로컬 좌표의 picking point — Master와 Scene에서 같은 자리다. */
 const PICK_LOCAL: readonly [number, number, number] = [0.145, 0.095, 0.12];
+
+// ── 석션 그리퍼 기하 (m) ──────────────────────────────────────────────
+// 플랜지 프레임(tool0 — 원점은 6축 원점, +z가 approach 축)에서 재는 치수다.
+/** 마운팅 플레이트 두께 — 플랜지 면에 붙는 원판. */
+const GRIPPER_PLATE_HEIGHT = 0.008;
+const GRIPPER_PLATE_RADIUS = 0.036;
+/** 그리퍼 몸통(원기둥) 길이·반지름. */
+const GRIPPER_BODY_LENGTH = 0.092;
+const GRIPPER_BODY_RADIUS = 0.019;
+/** 석션 패드(얕은 원뿔) 높이와 접촉면 반지름. */
+const SUCTION_PAD_HEIGHT = 0.02;
+const SUCTION_PAD_RADIUS = 0.038;
+/**
+ * flange → TCP 고정 오프셋 $T^{flange}_{tcp}$ — approach 축(+z)으로 그리퍼
+ * 전체 길이만큼 병진하고 회전은 없다(두 프레임의 축이 평행). TCP는 석션 패드의
+ * 끝단, 즉 물체에 닿는 면이다.
+ */
+const TOOL_LENGTH = GRIPPER_PLATE_HEIGHT + GRIPPER_BODY_LENGTH + SUCTION_PAD_HEIGHT;
+const T_FLANGE_TCP = Transform.fromTranslation([0, 0, TOOL_LENGTH]);
+
+/**
+ * 플랜지에 장착하는 석션 그리퍼 — 마운팅 플레이트 + 원기둥 몸통 + 석션 패드.
+ * 부모 프레임의 +z(approach 축)로 뻗고, 패드 끝단이 z = TOOL_LENGTH(= TCP)에 온다.
+ * three.js CylinderGeometry의 축은 로컬 +y라 x축 90°로 세워 +z에 맞춘다.
+ */
+function buildSuctionGripper(): THREE.Group {
+  const group = new THREE.Group();
+  const metal = new THREE.MeshStandardMaterial({color: 0x8f98a3, roughness: 0.35, metalness: 0.55});
+  const rubber = new THREE.MeshStandardMaterial({color: 0x2b3038, roughness: 0.85});
+
+  const stack: [THREE.CylinderGeometry, THREE.Material][] = [
+    [
+      new THREE.CylinderGeometry(GRIPPER_PLATE_RADIUS, GRIPPER_PLATE_RADIUS, GRIPPER_PLATE_HEIGHT, 28),
+      metal,
+    ],
+    [
+      new THREE.CylinderGeometry(GRIPPER_BODY_RADIUS, GRIPPER_BODY_RADIUS, GRIPPER_BODY_LENGTH, 24),
+      metal,
+    ],
+    // 패드는 끝(+z)으로 갈수록 벌어지는 고무 컵 — CylinderGeometry의 radiusTop이
+    // 로컬 +y = 회전 후 +z 쪽이므로 접촉면 반지름을 radiusTop에 준다.
+    [
+      new THREE.CylinderGeometry(SUCTION_PAD_RADIUS, GRIPPER_BODY_RADIUS * 1.15, SUCTION_PAD_HEIGHT, 28),
+      rubber,
+    ],
+  ];
+
+  let z = 0;
+  for (const [geometry, material] of stack) {
+    const height = geometry.parameters.height;
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.rotation.x = Math.PI / 2; // 실린더 축(+y) → 프레임 +z(approach)
+    mesh.position.z = z + height / 2;
+    group.add(mesh);
+    z += height;
+  }
+  return group;
+}
 
 /**
  * Master / Scene 물체 박스 — 반투명 몸체 + 와이어프레임 모서리.
@@ -323,9 +388,10 @@ export function createPipelineScene(options: PipelineSceneOptions): PipelineScen
   masterOriginMarker.add(masterOriginName!);
 
   // ── 조그 기준 좌표계 축 ───────────────────────────────────────────
-  // Cartesian 모드에서 "지금 어느 좌표계를 기준으로 미는가"를 눈으로 읽을 수
-  // 있게 한다. Base는 World 축(항상 켜 둔 worldAxes 대신 크게 강조해 그리고),
-  // Tool은 TCP link에 붙인 축이다.
+  // Cartesian 모드에서 "지금 어느 좌표계를 기준으로, 어느 점을 미는가"를 눈으로
+  // 읽을 수 있게 한다. Base는 World 축(항상 켜 둔 worldAxes 대신 크게 강조해
+  // 그리고), Flange는 플랜지 링크의 6축 원점, TCP는 그리퍼 끝단이다 — 회전
+  // 조그에서 이 원점이 곧 회전중심이라 Flange와 TCP가 다르게 움직인다.
   const buildJogReference = (length: number, text: string, labelHeight: number): THREE.Group => {
     const group = new THREE.Group();
     group.add(buildFrameAxes(length));
@@ -336,14 +402,20 @@ export function createPipelineScene(options: PipelineSceneOptions): PipelineScen
     group.visible = false;
     return group;
   };
-  const baseJogAxes = buildJogReference(0.5, '조그 기준: World 좌표계', 0.56);
+  const baseJogAxes = buildJogReference(0.5, '조그 기준: World 좌표계 (제어점 = TCP)', 0.56);
   worldRoot.add(baseJogAxes);
-  const toolJogAxes = buildJogReference(0.17, '조그 기준: Tool 좌표계 (TCP)', 0.2);
+  // 라벨은 approach 축의 반대쪽(-z, 손목 뒤)으로 빼 둔다 — +z 쪽에는 그리퍼와
+  // TCP 라벨이 있고, 기본 자세에서는 물체 박스 쪽이라 글자가 겹친다.
+  const flangeJogAxes = buildJogReference(0.19, '조그 기준: Flange (6축 원점)', -0.24);
+  // TCP 축은 같은 플랜지 링크에 붙지만 원점이 그리퍼 끝단으로 밀려 있다.
+  const tcpJogAxes = buildJogReference(0.16, '조그 기준: TCP (그리퍼 끝단)', 0.19);
+  tcpJogAxes.position.z = TOOL_LENGTH;
 
   let jogMode: JogMode = initialJogMode;
   const applyJogMode = (): void => {
     baseJogAxes.visible = jogMode === 'base';
-    toolJogAxes.visible = jogMode === 'tool';
+    flangeJogAxes.visible = jogMode === 'flange';
+    tcpJogAxes.visible = jogMode === 'tcp';
     // Base 강조 축과 겹치지 않도록 기본 World 축은 잠시 접어 둔다.
     worldAxes.visible = jogMode !== 'base';
   };
@@ -397,9 +469,14 @@ export function createPipelineScene(options: PipelineSceneOptions): PipelineScen
     applyTransform(robot, tWorldRobotBase);
     worldRoot.add(robot);
 
-    const toolLink = robot.links[robotConfig.frameLinks.tool];
-    if (toolLink) {
-      toolLink.add(toolJogAxes);
+    // frameLinks.tool(UR의 `tool0`)은 플랜지와 원점이 같고 +z가 approach 축인
+    // ROS-Industrial 표준 프레임이다 — 즉 이것이 곧 플랜지(6축 원점) 프레임이며,
+    // 그리퍼와 두 조그 기준 축을 모두 여기에 매단다.
+    const flangeLink = robot.links[robotConfig.frameLinks.tool];
+    if (flangeLink) {
+      flangeLink.add(buildSuctionGripper());
+      flangeLink.add(flangeJogAxes);
+      flangeLink.add(tcpJogAxes);
     }
     try {
       chain = urdfSerialChain(robot, robotConfig.frameLinks.tool);
@@ -419,8 +496,14 @@ export function createPipelineScene(options: PipelineSceneOptions): PipelineScen
       if (!robot || !chain) {
         return false;
       }
-      // 현재 관절각 → FK로 현재 TCP pose → 기준 좌표계에서 델타 적용 → IK.
-      const target = cartesianJogTarget(chain.fk(jointValues), step, frame);
+      // 현재 관절각 → FK로 현재 플랜지 pose → 기준 좌표계에서 델타 적용 →
+      // 목표 플랜지 pose(Base/TCP 모드는 tool 오프셋을 되돌린 값) → IK.
+      const target = jogTargetFlangePose({
+        flange: chain.fk(jointValues),
+        toolOffset: T_FLANGE_TCP,
+        step,
+        frame,
+      });
       const result = solveIk(chain, target, jointValues, {maxIterations: 80});
       if (!result.converged) {
         return false; // 싱귤래리티·도달 불가 — 이 스텝은 조용히 무시한다

@@ -27,8 +27,12 @@ _Avoid_: active(RPY)를 기본 표현으로 사용
 Robot Base를 원점으로 하는 기준 좌표계. 일반 로보틱스 문헌은 World와 Robot Base를 구분하기도 하지만, 이 교재는 World로 통일한다 (교재 1단계에 차이 주석 포함).
 _Avoid_: Robot 좌표계, Base 좌표계
 
+**Flange 좌표계**:
+로봇 6축(마지막 관절) 원점에 붙은 좌표계. 로봇이 기구학적으로 제어하는 지점이며, IK가 푸는 체인의 끝점이다. +z가 공구가 뻗는 approach 축이다 (URDF의 ROS-Industrial `tool0` 프레임과 같은 규약).
+_Avoid_: 6축 좌표계, Wrist 좌표계
+
 **Tool 좌표계**:
-Tooltip(TCP)을 원점으로 하는 좌표계. TCP(Tool Center Point)는 Tool 좌표계의 원점이다.
+Tooltip(TCP)을 원점으로 하는 좌표계. TCP(Tool Center Point)는 Tool 좌표계의 원점이다. 공구를 장착하면 TCP는 공구 끝단(예: 석션 패드의 접촉면)이며, Flange 좌표계와는 고정 오프셋 $T^{flange}_{tcp}$로 이어진다 — 조그의 회전중심이 6축 원점인지 공구 끝단인지가 이 오프셋만큼 달라진다.
 
 **Camera 좌표계**:
 Camera(Sensor)를 기준으로 하는 좌표계.

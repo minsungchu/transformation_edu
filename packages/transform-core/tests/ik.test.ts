@@ -1,13 +1,20 @@
 import {describe, expect, it} from 'vitest';
-import type {CartesianJogStep, IkResult, JogReferenceFrame} from '../src/index';
+import type {
+  CartesianJogStep,
+  IkResult,
+  JogControlFrame,
+  JogReferenceFrame,
+} from '../src/index';
 import {
   KinematicChain,
   Transform,
   cartesianJogTarget,
+  jogTargetFlangePose,
   normVec3,
   rotationMat3ToAxisAngle,
   solveIk,
   subVec3,
+  tcpPoseFromFlange,
 } from '../src/index';
 import {DEG, makeRng} from './helpers';
 import {UR5E_REST_POSE, ur5eChain} from './ur5e-fixture';
@@ -136,6 +143,103 @@ describe('solveIk — incremental 조그 왕복', () => {
     const tool = solveIk(chain, cartesianJogTarget(chain.fk(UR5E_REST_POSE), step, 'tool'), UR5E_REST_POSE);
     expect(base.converged && tool.converged).toBe(true);
     expect(poseGap(chain.fk(base.values), chain.fk(tool.values)).position).toBeGreaterThan(0.01);
+  });
+});
+
+describe('solveIk — tool 오프셋이 붙은 조그 (Base / Flange / TCP)', () => {
+  /** 뷰어의 석션 그리퍼와 같은 오프셋 — approach 축(+Z)으로 0.12 m. */
+  const TOOL_OFFSET = Transform.fromTranslation([0, 0, 0.12]);
+  const tcpOf = (flange: Transform): Transform => tcpPoseFromFlange(flange, TOOL_OFFSET);
+
+  /** 조그 → IK 한 스텝. 뷰어가 하는 것과 같은 순서다. */
+  function jogStep(
+    chain: KinematicChain,
+    values: Record<string, number>,
+    step: CartesianJogStep,
+    frame: JogControlFrame,
+  ): {values: Record<string, number>; result: IkResult; target: Transform} {
+    const target = jogTargetFlangePose({flange: chain.fk(values), toolOffset: TOOL_OFFSET, step, frame});
+    const result = solveIk(chain, target, values);
+    return {values: result.values, result, target};
+  }
+
+  it('FK(IK(target)) ≈ target — 세 모드 모두 목표 플랜지 pose에 도달한다', () => {
+    const chain = ur5eChain();
+    const steps: CartesianJogStep[] = [
+      {kind: 'translate', axis: [1, 0, 0], amount: 0.03},
+      {kind: 'translate', axis: [0, 0, 1], amount: 0.03},
+      {kind: 'rotate', axis: [0, 1, 0], amount: 6 * DEG},
+      {kind: 'rotate', axis: [1, 0, 0], amount: 6 * DEG},
+    ];
+    for (const frame of ['base', 'flange', 'tcp'] as JogControlFrame[]) {
+      for (const step of steps) {
+        const out = jogStep(chain, UR5E_REST_POSE, step, frame);
+        expect(out.result.converged, `${frame} / ${step.kind} 수렴`).toBe(true);
+        expectPoseClose(chain.fk(out.values), out.target);
+      }
+    }
+  });
+
+  it('Base 병진은 TCP를 World 축 방향으로 정확히 그만큼 옮긴다', () => {
+    const chain = ur5eChain();
+    const before = tcpOf(chain.fk(UR5E_REST_POSE)).translation;
+    const out = jogStep(chain, UR5E_REST_POSE, {kind: 'translate', axis: [0, 1, 0], amount: 0.04}, 'base');
+    expect(out.result.converged).toBe(true);
+    const after = tcpOf(chain.fk(out.values)).translation;
+    const delta = subVec3(after, before);
+    expect(delta[0]).toBeCloseTo(0, 4);
+    expect(delta[1]).toBeCloseTo(0.04, 4);
+    expect(delta[2]).toBeCloseTo(0, 4);
+  });
+
+  it('Flange 회전은 6축 원점을, TCP 회전은 그리퍼 끝단을 제자리에 둔다', () => {
+    const chain = ur5eChain();
+    const start = chain.fk(UR5E_REST_POSE);
+    // approach 축과 수직인 축으로 돌려야 두 회전중심의 차이가 드러난다.
+    const step: CartesianJogStep = {kind: 'rotate', axis: [0, 1, 0], amount: 10 * DEG};
+
+    const byFlange = jogStep(chain, UR5E_REST_POSE, step, 'flange');
+    const byTcp = jogStep(chain, UR5E_REST_POSE, step, 'tcp');
+    expect(byFlange.result.converged && byTcp.result.converged).toBe(true);
+
+    const flangeAfterFlangeJog = chain.fk(byFlange.values);
+    const flangeAfterTcpJog = chain.fk(byTcp.values);
+    // Flange 모드: 플랜지는 제자리, TCP는 원호를 따라 움직인다.
+    expect(poseGap(flangeAfterFlangeJog, start).position).toBeLessThan(1e-4);
+    const tcpMovedByFlange = poseGap(tcpOf(flangeAfterFlangeJog), tcpOf(start)).position;
+    expect(tcpMovedByFlange).toBeCloseTo(2 * 0.12 * Math.sin(5 * DEG), 4);
+    // TCP 모드: TCP는 제자리, 대신 플랜지가 움직인다.
+    expect(poseGap(tcpOf(flangeAfterTcpJog), tcpOf(start)).position).toBeLessThan(1e-4);
+    expect(poseGap(flangeAfterTcpJog, start).position).toBeCloseTo(tcpMovedByFlange, 4);
+    // 자세 변화량은 같다 — 다른 것은 회전중심뿐이다.
+    expect(poseGap(flangeAfterFlangeJog, start).orientation).toBeCloseTo(
+      poseGap(flangeAfterTcpJog, start).orientation,
+      4,
+    );
+  });
+
+  it('Flange 회전과 TCP 회전을 왕복하면 각각 제자리로 돌아온다', () => {
+    const chain = ur5eChain();
+    const start = chain.fk(UR5E_REST_POSE);
+    for (const frame of ['flange', 'tcp'] as JogControlFrame[]) {
+      let values = UR5E_REST_POSE;
+      for (const amount of [8 * DEG, 8 * DEG, -8 * DEG, -8 * DEG]) {
+        const out = jogStep(chain, values, {kind: 'rotate', axis: [1, 0, 0], amount}, frame);
+        expect(out.result.converged, `${frame} 왕복 수렴`).toBe(true);
+        values = out.values;
+      }
+      expectPoseClose(chain.fk(values), start, 1e-3, 1e-3);
+    }
+  });
+
+  it('도달 불가한 스텝은 seed를 그대로 돌려준다 (뷰어가 스텝을 조용히 건너뛴다)', () => {
+    const chain = ur5eChain();
+    // 팔 길이를 훌쩍 넘는 병진 — 수렴할 수 없다.
+    const out = jogStep(chain, UR5E_REST_POSE, {kind: 'translate', axis: [1, 0, 0], amount: 3}, 'tcp');
+    expect(out.result.converged).toBe(false);
+    for (const [name, value] of Object.entries(UR5E_REST_POSE)) {
+      expect(out.values[name]).toBe(value);
+    }
   });
 });
 

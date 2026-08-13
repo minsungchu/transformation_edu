@@ -37,5 +37,16 @@ export type {UrdfJointSpec} from './fk';
 export {KinematicChain, jointTransform, urdfRpyToRotation} from './fk';
 export type {IkOptions, IkResult} from './ik';
 export {solveIk} from './ik';
-export type {CartesianJogStep, JogReferenceFrame} from './jog';
-export {cartesianJogTarget, jogDelta} from './jog';
+export type {
+  CartesianJogStep,
+  JogControlFrame,
+  JogReferenceFrame,
+  ToolJogRequest,
+} from './jog';
+export {
+  cartesianJogTarget,
+  flangePoseFromTcp,
+  jogDelta,
+  jogTargetFlangePose,
+  tcpPoseFromFlange,
+} from './jog';
