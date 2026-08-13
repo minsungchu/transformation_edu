@@ -214,10 +214,10 @@ export function createPipelineScene(options: PipelineSceneOptions): PipelineScen
   // Scene: 공중에 떠 있는 실제 물체. Master: matching으로 이미 Scene 위에
   // 겹쳐진 기준 이미지 — 잔차 수준의 offset/회전만 남아 와이어프레임이
   // Scene을 감싼 것처럼 보인다.
-  const tWorldScene = Transform.fromTranslation([0.66, -0.2, BOX_ALTITUDE]).compose(
+  const tWorldScene = Transform.fromTranslation([0.53, -0.2, BOX_ALTITUDE]).compose(
     Transform.rotationZ(-0.3),
   );
-  const tWorldMaster = Transform.fromTranslation([0.676, -0.212, BOX_ALTITUDE + 0.008]).compose(
+  const tWorldMaster = Transform.fromTranslation([0.546, -0.212, BOX_ALTITUDE + 0.008]).compose(
     Transform.rotationZ(-0.22),
   );
 
@@ -232,7 +232,7 @@ export function createPipelineScene(options: PipelineSceneOptions): PipelineScen
   // 이동된 Master 이미지 원점 — 원점은 콘텐츠와 함께 변환을 받으므로
   // 일반적으로 물체 밖에 떨어진다 (원본 그림 2-8의 초록 점). 카메라 원점의
   // 오른쪽 아래, 박스의 오른쪽 위 허공에 두고 잔차 회전만 얹는다.
-  const tWorldMasterOrigin = Transform.fromTranslation([0.93, -0.18, 0.72]).compose(
+  const tWorldMasterOrigin = Transform.fromTranslation([0.8, -0.18, 0.72]).compose(
     Transform.rotationZ(-0.22),
   );
   const masterOriginMarker = buildOriginMarker(MASTER_RED);
