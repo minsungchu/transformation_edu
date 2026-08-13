@@ -132,6 +132,45 @@
   color: var(--ifm-color-emphasis-700);
 }
 
+/* ── 스텝 시뮬레이션 (BinPickingPipeline) ────────────────────────── */
+
+/* START만 강조 — 여기가 시퀀스의 입구다 */
+.simPrimary {
+  border-color: var(--ifm-color-primary);
+  color: var(--ifm-color-primary);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+/* 자릿수가 바뀌어도 버튼이 밀리지 않게 폭을 잡아 둔다 */
+.simCounter {
+  min-width: 4.5rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--ifm-color-emphasis-700);
+}
+
+/* 단계 설명 — flex-basis 100%로 줄을 통째로 차지해 툴바에 고정 행을 만든다 */
+.simNote {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.55;
+  color: var(--ifm-color-emphasis-800);
+}
+
+.simBadge {
+  display: inline-block;
+  margin-right: 0.4rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 4px;
+  background: var(--ifm-color-primary);
+  color: var(--ifm-background-color);
+  font-weight: 600;
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
 .jogWarn {
   color: var(--ifm-color-warning-darkest);
 }

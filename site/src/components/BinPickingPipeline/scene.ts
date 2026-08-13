@@ -43,6 +43,17 @@
  * 이동된 Master 원점)와 $P^{camera}_{master}$(이동된 Master 원점 → Master pick)는
  * 끝점이 움직이므로 정적 메시로 둘 수 없고, 끝점을 받아 다시 그리는 동적 화살표로
  * 만들어 드래그마다 갱신한다. Scene 쪽 요소는 카메라·World에 고정이라 그대로 남는다.
+ *
+ * **스텝 시뮬레이션**은 이 완성된 그림을 거꾸로 풀어 8단계로 다시 쌓아 보이는
+ * 장치다(`steps.ts`). 페이지에 들어오면 완성 상태(STEP 0)로 시작하고, START를
+ * 누르면 카메라와 로봇만 남은 STEP 1로 돌아간 뒤 NEXT마다 요소가 하나씩 붙는다.
+ * 시뮬레이션이 켜져 있는 동안에는 **sim이 Master의 위치와 요소 가시성을 소유**하므로
+ * 수동 Master 드래그를 잠근다 — 로봇 조그·free 드래그·궤도·최대화는 그대로 열려 있다.
+ *
+ * 전환은 전부 트윈이다. 요소의 등장/소멸은 opacity fade이고(재질 불투명도 ×
+ * alpha, 라벨 DOM은 style.opacity), Master의 matching 이동과 관절 자세 복귀는
+ * 위치·관절값 보간이다. `prefers-reduced-motion: reduce`이면 모든 트윈이 최종
+ * 상태로 즉시 건너뛴다.
  */
 import * as THREE from 'three';
 import {CSS2DObject} from 'three/examples/jsm/renderers/CSS2DRenderer.js';
@@ -61,6 +72,7 @@ import {
   buildTextLabel,
   createViewerShell,
 } from '../RobotCellViewer/viewer-core';
+import {PIPELINE_STEP_COUNT} from './steps';
 
 /** 조그 기준 — Cartesian 세 가지(Base/Flange/TCP) + 관절 직접 구동. */
 export type JogMode = JogControlFrame | 'joint';
@@ -96,10 +108,19 @@ export interface PipelineScene {
   jogCartesian: (frame: JogControlFrame, step: CartesianJogStep) => boolean;
   /** Joint 조그 — 관절값에 델타를 더하고 FK만 다시 돌린다 (IK 불필요). */
   jogJoint: (jointName: string, delta: number) => boolean;
-  /** 초기 자세로 되돌린다. */
+  /** 초기(홈) 자세로 부드럽게 되돌린다. */
   resetPose: () => void;
-  /** 드래그로 옮긴 Master 묶음을 matching이 끝난 원래 자리로 되돌린다. */
+  /**
+   * 드래그로 옮긴 Master 묶음을 matching이 끝난 원래 자리로 되돌린다.
+   * 시뮬레이션이 Master를 소유하고 있는 동안(STEP 1~7)에는 무시된다.
+   */
   resetMaster: () => void;
+  /**
+   * 스텝 시뮬레이션의 단계를 지정한다 — `0`이면 완성 상태(수동 조작 전부 열림),
+   * `1`..`PIPELINE_STEP_COUNT`면 해당 STEP의 그림으로 트윈한다. 마지막 STEP은
+   * 그림이 완성 상태와 같고 수동 조작도 다시 풀린다.
+   */
+  setSimStep: (step: number) => void;
   dispose: () => void;
 }
 
@@ -396,6 +417,96 @@ function buildPipelineArrow(style: ArrowStyle): PipelineArrow {
   return {group, update};
 }
 
+// ── 트윈 ──────────────────────────────────────────────────────────────
+/** 화살표·박스·원점이 등장/소멸하는 fade 시간 (초). */
+const FADE_SECONDS = 0.4;
+/** Master 묶음이 matching 자리로 옮겨가는 시간 (초) — 과정이 다 보여야 한다. */
+const MASTER_MOVE_SECONDS = 0.9;
+/** 관절 자세가 홈으로 되돌아가는 시간 (초). */
+const POSE_SECONDS = 0.8;
+/**
+ * 한 프레임에 흘려보낼 시간의 상한 (초) — 탭을 다시 켜거나 렌더가 한참 멈췄다가
+ * 돌아왔을 때 누적된 dt로 트윈이 통째로 건너뛰지 않게 한다.
+ */
+const MAX_FRAME_SECONDS = 0.1;
+
+/** ease-in-out — 시작과 끝이 느리고 가운데가 빠른 표준 곡선. */
+function easeInOut(t: number): number {
+  return t < 0.5 ? 2 * t * t : 1 - 2 * (1 - t) * (1 - t);
+}
+
+/** 불투명도를 가진 재질 — three의 Material 타입에는 opacity가 이미 있다. */
+type OpaqueMaterial = THREE.Material & {opacity: number};
+
+/**
+ * 묶음 하나를 통째로 fade in/out하는 손잡이.
+ *
+ * 요소마다 원래 불투명도가 다르므로(옅은 Master 몸체 0.12, 선 1.0 …) 절대값을
+ * 덮어쓰지 않고 **원래 값 × alpha**로 곱한다. CSS2D 라벨은 재질이 없으므로 DOM의
+ * `style.opacity`를 같이 건드리고, alpha가 0이면 루트의 `visible`을 내려 렌더에서
+ * 아예 뺀다 — CSS2DRenderer도 부모의 `visible`을 따라 라벨 DOM을 숨긴다.
+ */
+interface Fade {
+  /** 현재 alpha (0 = 감춤, 1 = 원래 모습). */
+  readonly alpha: number;
+  set: (alpha: number) => void;
+  /** hover 강조처럼 **원래 불투명도 자체**가 바뀔 때 쓴다 (alpha는 유지). */
+  setBase: (material: OpaqueMaterial, base: number) => void;
+}
+
+function createFade(roots: readonly THREE.Object3D[]): Fade {
+  const materials: {material: OpaqueMaterial; base: number}[] = [];
+  const elements: HTMLElement[] = [];
+  for (const root of roots) {
+    // traverse는 visible=false인 자식도 빠뜨리지 않으므로 순서를 신경 쓸 필요가 없다.
+    root.traverse((object) => {
+      if (object instanceof CSS2DObject) {
+        elements.push(object.element);
+        return;
+      }
+      const raw = (object as Partial<THREE.Mesh>).material;
+      if (!raw) {
+        return;
+      }
+      for (const material of Array.isArray(raw) ? raw : [raw]) {
+        material.transparent = true; // 불투명 재질은 opacity를 무시한다
+        const opaque = material as OpaqueMaterial;
+        materials.push({material: opaque, base: opaque.opacity});
+      }
+    });
+  }
+
+  let alpha = 1;
+  const apply = (): void => {
+    for (const entry of materials) {
+      entry.material.opacity = entry.base * alpha;
+    }
+    for (const element of elements) {
+      element.style.opacity = String(alpha);
+    }
+    for (const root of roots) {
+      root.visible = alpha > 0.002;
+    }
+  };
+
+  return {
+    get alpha() {
+      return alpha;
+    },
+    set: (next) => {
+      alpha = next;
+      apply();
+    },
+    setBase: (material, base) => {
+      const entry = materials.find((e) => e.material === material);
+      if (entry) {
+        entry.base = base;
+        apply();
+      }
+    },
+  };
+}
+
 export function createPipelineScene(options: PipelineSceneOptions): PipelineScene {
   const {
     container,
@@ -411,8 +522,8 @@ export function createPipelineScene(options: PipelineSceneOptions): PipelineScen
     // 로봇(World 원점) · 카메라 · 공중의 박스가 함께 보이는 시점.
     cameraPosition: [-0.45, 1.55, 2.35],
     target: [0.35, 0.62, 0],
-    // 첫 프레임이 rAF로 미뤄지므로 아래에서 정의하는 followFrame을 참조해도 안전하다.
-    onBeforeRender: () => followFrame(),
+    // 첫 프레임이 rAF로 미뤄지므로 아래에서 정의하는 frameUpdate를 참조해도 안전하다.
+    onBeforeRender: () => frameUpdate(),
   });
   const {worldRoot} = shell;
 
@@ -496,23 +607,31 @@ export function createPipelineScene(options: PipelineSceneOptions): PipelineScen
   worldRoot.add(imageOriginDot);
 
   // ── 파이프라인 화살표 5종 + 수식 라벨 ─────────────────────────────
-  // 끝점이 World·Camera·Scene에 고정인 셋은 한 번 그리면 끝이다.
-  const staticArrows: (ArrowStyle & {from: THREE.Vector3; to: THREE.Vector3})[] = [
-    // T_cal: World 원점 → Camera 원점 (calibration 결과)
-    {from: worldOrigin, to: cameraOrigin, base: 'T', sup: '', sub: 'cal',
-     color: GRAY, dashed: true, labelT: 0.6},
-    // P^{camera}_{scene}: Camera 원점(= Scene 이미지 원점) → Scene의 picking point
-    {from: cameraOrigin, to: scenePick, base: 'P', sup: 'camera', sub: 'scene',
-     color: GRAY, dashed: true, labelT: 0.68},
-    // P^{world}_{scene}: World 원점 → Scene의 picking point — 유일한 파란 실선(최종 답)
-    {from: worldOrigin, to: scenePick, base: 'P', sup: 'world', sub: 'scene',
-     color: BLUE, dashed: false, labelT: 0.45},
-  ];
-  for (const spec of staticArrows) {
+  // 끝점이 World·Camera·Scene에 고정인 셋은 한 번 그리면 끝이다 (스텝 시뮬레이션이
+  // 하나씩 fade in할 수 있도록 각각 이름을 붙여 둔다).
+  const buildStaticArrow = (
+    spec: ArrowStyle & {from: THREE.Vector3; to: THREE.Vector3},
+  ): PipelineArrow => {
     const arrow = buildPipelineArrow(spec);
     arrow.update(spec.from, spec.to);
     worldRoot.add(arrow.group);
-  }
+    return arrow;
+  };
+  // T_cal: World 원점 → Camera 원점 (calibration 결과)
+  const tCalArrow = buildStaticArrow({
+    from: worldOrigin, to: cameraOrigin, base: 'T', sup: '', sub: 'cal',
+    color: GRAY, dashed: true, labelT: 0.6,
+  });
+  // P^{camera}_{scene}: Camera 원점(= Scene 이미지 원점) → Scene의 picking point
+  const pCameraSceneArrow = buildStaticArrow({
+    from: cameraOrigin, to: scenePick, base: 'P', sup: 'camera', sub: 'scene',
+    color: GRAY, dashed: true, labelT: 0.68,
+  });
+  // P^{world}_{scene}: World 원점 → Scene의 picking point — 유일한 파란 실선(최종 답)
+  const pWorldSceneArrow = buildStaticArrow({
+    from: worldOrigin, to: scenePick, base: 'P', sup: 'world', sub: 'scene',
+    color: BLUE, dashed: false, labelT: 0.45,
+  });
 
   // 나머지 둘은 Master 묶음에 끝점이 걸려 있어 드래그마다 다시 그린다.
   // T_match: Scene 원점(= 카메라 원점, 고정) → 허공의 이동된 Master 원점
@@ -544,29 +663,228 @@ export function createPipelineScene(options: PipelineSceneOptions): PipelineScen
   updateMasterArrows();
 
   // ── 이름표 ────────────────────────────────────────────────────────
+  /**
+   * Master 원점 이름표 — matching 전에는 아직 "이동된" 원점이 아니라 카메라 원점과
+   * 같은 자리에 있는 원본 이미지 원점이므로, 스텝 시뮬레이션이 문구를 바꿔 준다.
+   */
+  const MASTER_ORIGIN_NAMES = {
+    beforeMatch: 'Master 원점 (= 카메라 원점)',
+    afterMatch: '이동된 Master 원점',
+  };
   const nameLabels: [readonly [number, number, number], string, string][] = [
     [[-0.28, 0, 0.06], 'Robot — World 좌표계', '#aeb8c4'],
     [[0.74, 0, 1.42], 'Camera 좌표계', '#aeb8c4'],
     [[0.32, 0.06, 1.3], '이미지 원점 (원래 위치)', '#e7ecf3'],
     [[0.05, 0.1, 0.24], 'Master', MASTER_RED],
     [[0.24, 0.1, -0.05], 'Scene', SCENE_BLUE],
-    [[0.05, 0, -0.09], '이동된 Master 원점', MASTER_RED],
+    [[0.05, 0, -0.09], MASTER_ORIGIN_NAMES.afterMatch, MASTER_RED],
   ];
   const [worldName, cameraName, imageOriginName, masterName, sceneName, masterOriginName] =
     nameLabels.map(([position, text, color]) => {
+      const element = buildTextLabel(text, color);
       const anchor = new THREE.Object3D();
       anchor.position.copy(vec(position));
-      anchor.add(new CSS2DObject(buildTextLabel(text, color)));
-      return anchor;
+      anchor.add(new CSS2DObject(element));
+      return {anchor, element};
     });
-  worldRoot.add(worldName!);
-  worldRoot.add(cameraName!);
-  worldRoot.add(imageOriginName!);
+  worldRoot.add(worldName!.anchor);
+  worldRoot.add(cameraName!.anchor);
+  worldRoot.add(imageOriginName!.anchor);
   // Master/Scene 이름표는 박스에, 이동된 원점 라벨은 허공의 마커에 붙여
   // 로컬 좌표로 띄운다.
-  masterBox.add(masterName!);
-  sceneBox.add(sceneName!);
-  masterOriginMarker.add(masterOriginName!);
+  masterBox.add(masterName!.anchor);
+  sceneBox.add(sceneName!.anchor);
+  masterOriginMarker.add(masterOriginName!.anchor);
+
+  // ── 트윈 러너 ─────────────────────────────────────────────────────
+  // 진행 중인 트윈을 "무엇을 움직이는가"로 키를 잡아 Map에 담는다 — 같은 대상에
+  // 새 트윈이 걸리면 이전 것을 자동으로 밀어내므로, NEXT를 연타해도 두 트윈이
+  // 한 값을 동시에 쓰는 일이 없다.
+  interface Tween {
+    seconds: number;
+    elapsed: number;
+    /** 이징이 적용된 진행도(0~1)를 받아 값을 씌운다. */
+    apply: (progress: number) => void;
+    onDone?: () => void;
+  }
+  const tweens = new Map<unknown, Tween>();
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+  /** 트윈을 걸거나, 모션을 줄이는 설정이면 최종 상태로 즉시 건너뛴다. */
+  const animate = (
+    key: unknown,
+    seconds: number,
+    apply: (progress: number) => void,
+    onDone?: () => void,
+  ): void => {
+    if (reduceMotion.matches || seconds <= 0) {
+      tweens.delete(key);
+      apply(1);
+      onDone?.();
+      return;
+    }
+    tweens.set(key, {seconds, elapsed: 0, apply, onDone});
+  };
+
+  let lastFrameMs = 0;
+  const advanceTweens = (): void => {
+    const now = performance.now();
+    const dt = lastFrameMs === 0 ? 0 : Math.min((now - lastFrameMs) / 1000, MAX_FRAME_SECONDS);
+    lastFrameMs = now;
+    // Map은 순회 중 delete가 안전하다 (아직 안 본 항목만 남는다).
+    for (const [key, tween] of tweens) {
+      tween.elapsed += dt;
+      const t = Math.min(1, tween.elapsed / tween.seconds);
+      tween.apply(easeInOut(t));
+      if (t >= 1) {
+        tweens.delete(key);
+        tween.onDone?.();
+      }
+    }
+  };
+
+  // ── 스텝 시뮬레이션 ───────────────────────────────────────────────
+  // 요소를 묶음 단위로 fade한다. 묶음끼리 재질이 겹치지 않게 나눠야 한 재질이
+  // 두 alpha를 동시에 받지 않는다 (라벨은 각자 붙어 있는 부모 묶음을 따라간다).
+  const masterFade = createFade([masterGroup]);
+  const sceneFade = createFade([sceneBox, scenePickDot]);
+  const imageOriginFade = createFade([imageOriginDot, imageOriginName!.anchor]);
+  // T_match와 P^camera_master는 둘 다 "이동된 Master 원점"에 걸린 화살표라
+  // 한 묶음으로 같이 등장한다.
+  const tMatchFade = createFade([tMatchArrow.group, pCameraMasterArrow.group]);
+  const pCameraSceneFade = createFade([pCameraSceneArrow.group]);
+  const tCalFade = createFade([tCalArrow.group]);
+  const pWorldSceneFade = createFade([pWorldSceneArrow.group]);
+
+  /** 각 묶음이 처음 나타나는 STEP (`steps.ts`의 시나리오). */
+  const REVEAL_AT: readonly {fade: Fade; step: number}[] = [
+    {fade: masterFade, step: 2},
+    {fade: imageOriginFade, step: 2},
+    {fade: sceneFade, step: 3},
+    {fade: tMatchFade, step: 5},
+    {fade: pCameraSceneFade, step: 6},
+    {fade: tCalFade, step: 7},
+    {fade: pWorldSceneFade, step: 8},
+  ];
+  /** Master가 Scene 위로 옮겨가는 STEP — 이 단계부터 matching이 끝난 그림이다. */
+  const MATCH_STEP = 4;
+
+  /**
+   * matching 전 Master 묶음의 위치 (masterGroup의 병진량).
+   *
+   * "이미지 원점은 원래 카메라 원점과 같다"를 그림으로 보이는 자리다 — 원점 마커를
+   * 카메라 원점 바로 옆에 살짝 비껴 두면, 강체로 묶인 박스가 Scene에서 멀찍이
+   * 떨어진 공중으로 딸려 올라간다. 즉 matching이 옮기는 것은 원점 하나이고 박스는
+   * 그 결과로 따라오는 것이라는 관계가 시작 자세에서부터 드러난다.
+   */
+  const MASTER_ORIGIN_NUDGE: readonly [number, number, number] = [0.02, -0.09, -0.05];
+  const masterPreMatchOffset = new THREE.Vector3()
+    .copy(cameraOrigin)
+    .add(vec(MASTER_ORIGIN_NUDGE))
+    .sub(masterOrigin);
+  /** matching이 끝난 자리 = 씬을 만들 때의 원래 pose이므로 병진량이 0이다. */
+  const masterMatchedOffset = new THREE.Vector3(0, 0, 0);
+
+  const MASTER_MOVE_KEY = 'master-move';
+  const JOINT_KEY = 'joint-values';
+
+  const tweenMasterTo = (to: THREE.Vector3, seconds: number): void => {
+    const from = masterGroup.position.clone();
+    if (from.distanceToSquared(to) < 1e-12) {
+      tweens.delete(MASTER_MOVE_KEY);
+      return;
+    }
+    animate(MASTER_MOVE_KEY, seconds, (progress) => {
+      masterGroup.position.lerpVectors(from, to, progress);
+      updateMasterArrows(); // 끝점이 Master에 걸린 화살표 둘은 매 프레임 다시 그린다
+    });
+  };
+  const snapMasterTo = (to: THREE.Vector3): void => {
+    tweens.delete(MASTER_MOVE_KEY);
+    masterGroup.position.copy(to);
+    updateMasterArrows();
+  };
+
+  /** 관절 자세를 목표값까지 보간한다 — 홈 복귀가 한 프레임에 튀지 않도록. */
+  const tweenJointsTo = (target: Readonly<Record<string, number>>): void => {
+    const from = {...jointValues};
+    animate(JOINT_KEY, POSE_SECONDS, (progress) => {
+      for (const [name, goal] of Object.entries(target)) {
+        const start = from[name];
+        if (start !== undefined) {
+          jointValues[name] = start + (goal - start) * progress;
+        }
+      }
+      applyJointValues();
+    });
+  };
+  /** 사람이 직접 팔을 움직이기 시작하면 진행 중인 자세 트윈을 놓아준다. */
+  const cancelJointTween = (): void => {
+    tweens.delete(JOINT_KEY);
+  };
+
+  /**
+   * 현재 단계. `0` = 완성 상태(시뮬레이션 꺼짐), `1..PIPELINE_STEP_COUNT` = 각 STEP.
+   * 마지막 STEP은 그림이 완성 상태와 같으므로 잠금도 함께 풀린다.
+   */
+  let simStep = 0;
+  /** sim이 Master의 위치·가시성을 소유하고 있는가 (= 수동 Master 드래그 잠금). */
+  const simOwnsMaster = (): boolean => simStep >= 1 && simStep < PIPELINE_STEP_COUNT;
+  /** 완성 상태(0)와 마지막 STEP은 "전부 보이는" 같은 그림이다. */
+  const showsEverything = (step: number): boolean => step === 0 || step >= PIPELINE_STEP_COUNT;
+  const masterVisibleAt = (step: number): boolean => showsEverything(step) || step >= 2;
+  const matchedAt = (step: number): boolean => showsEverything(step) || step >= MATCH_STEP;
+
+  const fadeTo = (fade: Fade, target: number, onDone?: () => void): void => {
+    const from = fade.alpha;
+    if (from === target) {
+      tweens.delete(fade);
+      onDone?.();
+      return;
+    }
+    animate(fade, FADE_SECONDS, (progress) => fade.set(from + (target - from) * progress), onDone);
+  };
+
+  const setSimStep = (next: number): void => {
+    const clamped = Math.max(0, Math.min(PIPELINE_STEP_COUNT, Math.round(next)));
+    const previous = simStep;
+    simStep = clamped;
+
+    const matched = matchedAt(clamped);
+    masterOriginName!.element.textContent = matched
+      ? MASTER_ORIGIN_NAMES.afterMatch
+      : MASTER_ORIGIN_NAMES.beforeMatch;
+
+    // Master의 자리는 fade와 어긋나면 안 된다: 보이는 채로 옮길 때만 트윈하고,
+    // 사라지는 중이라면 다 사라진 뒤에(onDone) 조용히 옮긴다.
+    const to = matched ? masterMatchedOffset : masterPreMatchOffset;
+    const visible = masterVisibleAt(clamped);
+    const wasVisible = masterVisibleAt(previous);
+    let onMasterFadeDone: (() => void) | undefined;
+    if (visible && wasVisible) {
+      tweenMasterTo(to, MASTER_MOVE_SECONDS); // STEP 4의 matching이 바로 이 경우다
+    } else if (visible) {
+      snapMasterTo(to); // 아직 안 보이는 동안 자리를 잡아 두고 fade in한다
+    } else {
+      onMasterFadeDone = () => snapMasterTo(to);
+    }
+
+    for (const entry of REVEAL_AT) {
+      const target = showsEverything(clamped) || clamped >= entry.step ? 1 : 0;
+      fadeTo(entry.fade, target, entry.fade === masterFade ? onMasterFadeDone : undefined);
+    }
+
+    // 잠기는 순간 Master를 잡고 있었거나 hover 강조가 남아 있으면 여기서 놓아준다.
+    if (simOwnsMaster()) {
+      if (dragTarget === 'master') {
+        endDrag();
+      }
+      if (hoverTarget === 'master') {
+        hoverTarget = null;
+      }
+    }
+    applyDragStyle(); // 잠금이 바뀌면 hover 강조·커서도 따라가야 한다
+  };
 
   // ── 조그 기준 좌표계 축 ───────────────────────────────────────────
   // Cartesian 모드에서 "지금 어느 좌표계를 기준으로, 어느 점을 미는가"를 눈으로
@@ -725,8 +1043,13 @@ export function createPipelineScene(options: PipelineSceneOptions): PipelineScen
     handle.sphere.scale.setScalar(handleActive ? 1.1 : 1);
     handle.label.visible = handleActive;
 
+    // Master 몸체는 fade의 곱셈 대상이라 opacity를 직접 쓰면 안 된다 — 원래
+    // 불투명도(base)만 바꿔 주고 alpha는 시뮬레이션 쪽에 맡긴다.
     const masterActive = active('master');
-    master.material.opacity = masterActive ? MASTER_BODY_OPACITY_ACTIVE : MASTER_BODY_OPACITY;
+    masterFade.setBase(
+      master.material,
+      masterActive ? MASTER_BODY_OPACITY_ACTIVE : MASTER_BODY_OPACITY,
+    );
     masterDragLabel.visible = masterActive;
 
     shell.domElement.style.cursor = dragTarget ? 'grabbing' : hoverTarget ? 'grab' : '';
@@ -758,6 +1081,11 @@ export function createPipelineScene(options: PipelineSceneOptions): PipelineScen
     // (IK 체인이 없으면 끌어도 팔이 따라오지 못한다).
     if (handle.group.visible && chain && raycaster.intersectObject(handle.sphere, false).length > 0) {
       return 'handle';
+    }
+    // 시뮬레이션이 도는 동안에는 sim이 Master의 위치를 소유한다 — 손으로 끌면
+    // 트윈과 서로 덮어쓰므로 아예 잡히지 않게 한다 (로봇 조작은 위에서 이미 통과).
+    if (simOwnsMaster() || masterFade.alpha < 0.5) {
+      return null;
     }
     return raycaster.intersectObject(master.body, false).length > 0 ? 'master' : null;
   };
@@ -841,6 +1169,7 @@ export function createPipelineScene(options: PipelineSceneOptions): PipelineScen
     }
 
     if (target === 'handle' && chain) {
+      cancelJointTween(); // 사람이 잡은 순간부터는 자세 트윈이 아니라 손이 주인이다
       grabbedPose = chain.fk(jointValues);
       followGoal = toBaseFrame(grabPoint);
       failStreak = 0;
@@ -915,6 +1244,15 @@ export function createPipelineScene(options: PipelineSceneOptions): PipelineScen
     reportState('dragging');
   };
 
+  /**
+   * 렌더 한 프레임의 갱신 — 트윈을 먼저 진행시키고 free 드래그를 뒤에 둔다.
+   * 손이 잡고 있는 동안에는 자세 트윈이 이미 취소되어 있으므로 둘이 겹치지 않는다.
+   */
+  const frameUpdate = (): void => {
+    advanceTweens();
+    followFrame();
+  };
+
   return {
     setJogMode: (mode) => {
       jogMode = mode;
@@ -924,6 +1262,7 @@ export function createPipelineScene(options: PipelineSceneOptions): PipelineScen
       if (!robot || !chain) {
         return false;
       }
+      cancelJointTween();
       // 현재 관절각 → FK로 현재 플랜지 pose → 기준 좌표계에서 델타 적용 →
       // 목표 플랜지 pose(Base/TCP 모드는 tool 오프셋을 되돌린 값) → IK.
       const target = jogTargetFlangePose({
@@ -944,21 +1283,25 @@ export function createPipelineScene(options: PipelineSceneOptions): PipelineScen
       if (!robot || !(jointName in jointValues)) {
         return false;
       }
+      cancelJointTween();
       const before = jointValues[jointName]!;
       jointValues[jointName] = before + delta;
       applyJointValues(); // limit을 넘으면 여기서 잘려 되읽힌다
       return Math.abs(jointValues[jointName]! - before) > 1e-9;
     },
     resetPose: () => {
-      Object.assign(jointValues, robotConfig.jointValues);
-      applyJointValues();
+      tweenJointsTo(robotConfig.jointValues);
     },
     resetMaster: () => {
-      masterGroup.position.set(0, 0, 0);
-      updateMasterArrows();
+      if (simOwnsMaster()) {
+        return; // 시뮬레이션이 Master를 소유하고 있는 동안에는 손을 대지 않는다
+      }
+      tweenMasterTo(masterMatchedOffset, MASTER_MOVE_SECONDS);
     },
+    setSimStep,
     dispose: () => {
       disposed = true;
+      tweens.clear();
       endDrag(); // 드래그 도중 언마운트되어도 window 리스너가 남지 않게
       container.removeEventListener('pointerdown', onPointerDown, true);
       shell.domElement.removeEventListener('pointermove', onHoverMove);

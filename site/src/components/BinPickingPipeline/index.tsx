@@ -24,6 +24,11 @@
  * 화면에서 바로 비교하기 위한 것으로, 박스·이동된 원점·picking point가 강체로
  * 함께 움직이고 $T_{match}$가 실시간으로 다시 그려진다. 원래(= matching이 끝난)
  * 자리로는 툴바의 'Master 원위치' 버튼으로 되돌린다.
+ *
+ * 툴바 맨 위에는 **스텝 시뮬레이션**이 있다 — 완성된 그림을 거꾸로 풀어, 카메라와
+ * 로봇만 있는 상태에서 시작해 NEXT마다 요소를 하나씩 쌓아 올린다(`steps.ts`).
+ * 재생 중에는 씬이 Master의 위치를 소유하므로 수동 Master 드래그만 잠기고, 로봇
+ * 조그·궤도·최대화는 그대로 쓸 수 있다.
  */
 import React, {useEffect, useMemo, useRef, useState, type ReactNode} from 'react';
 import useBaseUrl from '@docusaurus/useBaseUrl';
@@ -31,9 +36,36 @@ import type {CartesianJogStep, Vec3} from 'transform-core';
 import {DEFAULT_ROBOT, ROBOT_MODELS} from '../RobotCellViewer/robots';
 import {FullscreenButton, useViewerFullscreen} from '../RobotCellViewer/fullscreen';
 import type {FreeDragState, JogMode, PipelineScene} from './scene';
+import {PIPELINE_STEPS, PIPELINE_STEP_COUNT} from './steps';
 import styles from '../RobotCellViewer/styles.module.css';
 
 const DEG = Math.PI / 180;
+
+/**
+ * 이 뷰어의 홈(초기) 자세 — 팔을 뒤로 당겨 접은 자세다.
+ *
+ * 공용 `restPose`(RobotCellViewer)는 팔을 앞으로 뻗어 작업 공간을 보여 주는
+ * 자세라 1단계 문서들이 그 모습에 맞춰져 있다. 반면 이 씬에는 로봇 앞 공중에
+ * 물체 박스와 화살표 다섯 개가 놓이므로, 팔이 뻗어 있으면 지도를 가린다. 그래서
+ * 팔을 뒤로 접어 세운 자세를 이 컴포넌트 안에만 둔다 — 관절 한계 안이고, 여기서
+ * 출발해도 조그와 손목 free 드래그가 정상 동작한다.
+ *
+ * 순서는 base → tip이며(관절 조그 J1~J6 라벨이 이 순서를 그대로 쓴다), 어깨를
+ * 수직보다 조금 더 뒤로 넘기고 팔꿈치를 접어 손목이 로봇 몸통 쪽으로 되돌아오게
+ * 한다. 손목 각의 합(어깨 + 팔꿈치 + 손목1)은 공용 자세와 같게 유지해 공구가
+ * 계속 아래를 보도록 했다.
+ */
+const HOME_POSE: Record<string, number> = {
+  shoulder_pan_joint: 0,
+  shoulder_lift_joint: -2.05,
+  elbow_joint: 2.3,
+  wrist_1_joint: -1.82,
+  wrist_2_joint: -Math.PI / 2,
+  wrist_3_joint: 0,
+};
+
+/** 관절 조그 버튼에 쓸 관절 목록 — HOME_POSE가 곧 움직이는 관절 6개다. */
+const JOINT_NAMES = Object.keys(HOME_POSE);
 
 // 좌표계 이름은 CONTEXT.md 용어(World / Flange / Tool·TCP)를 따르고, 티칭
 // 펜던트에서 쓰는 버튼 이름(Base)은 괄호로만 붙인다.
@@ -176,6 +208,8 @@ export default function BinPickingPipeline({height}: {height?: number} = {}): Re
   const [jointStepDeg, setJointStepDeg] = useState(5);
   const [jogWarning, setJogWarning] = useState('');
   const [freeDrag, setFreeDrag] = useState<FreeDragState>('idle');
+  /** 스텝 시뮬레이션의 단계 — 0이면 꺼진 상태(= 완성된 그림). */
+  const [simStep, setSimStepState] = useState(0);
 
   const model = ROBOT_MODELS[DEFAULT_ROBOT];
   const siteBase = useBaseUrl('/');
@@ -185,14 +219,12 @@ export default function BinPickingPipeline({height}: {height?: number} = {}): Re
       packages: Object.fromEntries(
         Object.entries(model.packages).map(([pkg, path]) => [pkg, siteBase + path]),
       ),
-      jointValues: model.restPose,
+      jointValues: HOME_POSE,
       frameLinks: model.frameLinks,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [siteBase],
   );
-  /** 조그 버튼에 쓸 관절 목록 — restPose가 곧 움직이는 관절 6개다 (base → tip 순). */
-  const jointNames = useMemo(() => Object.keys(model.restPose), [model.restPose]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -202,6 +234,7 @@ export default function BinPickingPipeline({height}: {height?: number} = {}): Re
     let cancelled = false;
     let scene: PipelineScene | undefined;
     setStatus('loading');
+    setSimStepState(0); // 씬을 새로 만들면 완성 상태에서 다시 시작한다
     void import('./scene').then(({createPipelineScene}) => {
       if (cancelled) {
         return;
@@ -241,6 +274,22 @@ export default function BinPickingPipeline({height}: {height?: number} = {}): Re
 
   const jogDisabled = status !== 'ready';
 
+  /** 시뮬레이션 단계를 옮긴다 — 씬이 트윈으로 그림을 맞추고, 툴바는 표시만 따라간다. */
+  const goToStep = (next: number): void => {
+    const clamped = Math.max(0, Math.min(PIPELINE_STEP_COUNT, next));
+    setSimStepState(clamped);
+    sceneRef.current?.setSimStep(clamped);
+  };
+  /** START — 로봇도 홈 자세로 되돌리고 STEP 1(카메라 + 로봇만)에서 다시 시작한다. */
+  const startSim = (): void => {
+    sceneRef.current?.resetPose();
+    setJogWarning('');
+    goToStep(1);
+  };
+  /** 재생 중에는 씬이 Master를 소유한다 — 마지막 STEP에서 다시 풀린다. */
+  const masterLocked = simStep >= 1 && simStep < PIPELINE_STEP_COUNT;
+  const activeStep = simStep >= 1 ? PIPELINE_STEPS[simStep - 1] : undefined;
+
   const stepCartesian = (spec: (typeof CARTESIAN_AXES)[number], sign: 1 | -1): void => {
     const amount =
       spec.kind === 'translate'
@@ -278,7 +327,7 @@ export default function BinPickingPipeline({height}: {height?: number} = {}): Re
         className={styles.container}
         style={isFullscreen || !height ? undefined : {height}}
         role="img"
-        aria-label="Bin picking 파이프라인 개요 3D 씬: World 좌표계(로봇)에서 Camera 좌표계로의 T_cal, 카메라 원점 자리의 Master·Scene 이미지 원점, Scene을 감싸며 겹쳐진 Master와 박스 옆 허공에 떨어진 이동된 Master 원점, Scene 원점(카메라)에서 이동된 Master 원점으로의 T_match, 그리고 최종 답 P world scene. 로봇 플랜지에는 석션 그리퍼가 달려 있고 패드 끝단이 TCP다. 손목에는 마우스로 끌어 팔을 자유롭게 움직일 수 있는 노란 구체 드래그 핸들이 붙어 있다. Master 박스는 마우스로 끌어 옮길 수 있고, 이동된 Master 원점과 picking point가 상대관계를 유지한 채 함께 움직이며 T_match 화살표가 실시간으로 다시 그려진다">
+        aria-label="Bin picking 파이프라인 개요 3D 씬: World 좌표계(로봇)에서 Camera 좌표계로의 T_cal, 카메라 원점 자리의 Master·Scene 이미지 원점, Scene을 감싸며 겹쳐진 Master와 박스 옆 허공에 떨어진 이동된 Master 원점, Scene 원점(카메라)에서 이동된 Master 원점으로의 T_match, 그리고 최종 답 P world scene. 로봇은 팔을 뒤로 접은 홈 자세로 서 있고, 플랜지에는 석션 그리퍼가 달려 있으며 패드 끝단이 TCP다. 손목에는 마우스로 끌어 팔을 자유롭게 움직일 수 있는 노란 구체 드래그 핸들이 붙어 있다. Master 박스는 마우스로 끌어 옮길 수 있고, 이동된 Master 원점과 picking point가 상대관계를 유지한 채 함께 움직이며 T_match 화살표가 실시간으로 다시 그려진다. 툴바의 START/NEXT/PREV 버튼으로 이 그림을 8단계에 걸쳐 처음부터 쌓아 올리는 시뮬레이션을 재생할 수 있다">
         {status === 'loading' && <div className={styles.overlay}>파이프라인 씬 불러오는 중…</div>}
         {status === 'error' && (
           <div className={`${styles.overlay} ${styles.error}`}>
@@ -287,14 +336,64 @@ export default function BinPickingPipeline({height}: {height?: number} = {}): Re
         )}
         {status === 'ready' && (
           <div className={styles.hint}>
-            손목의 노란 구체 드래그: 팔 자유 이동 · Master 박스 드래그: 매칭 전/후 비교 ·
-            빈 공간 드래그: 회전 · 휠: 확대/축소 · 우클릭 드래그: 이동
+            손목의 노란 구체 드래그: 팔 자유 이동 ·{' '}
+            {masterLocked
+              ? 'Master 드래그: 시뮬레이션 중 잠김'
+              : 'Master 박스 드래그: 매칭 전/후 비교'}{' '}
+            · 빈 공간 드래그: 회전 · 휠: 확대/축소 · 우클릭 드래그: 이동
           </div>
         )}
       </div>
       {/* role="img" 컨테이너 안에 두면 보조기기에 presentational로 숨겨지므로 형제로 둔다. */}
       <FullscreenButton isFullscreen={isFullscreen} onToggle={toggleFullscreen} />
       <div className={styles.toolbar}>
+        <div className={styles.toolbarGroup}>
+          <span className={styles.toolbarTitle}>시뮬레이션</span>
+          <button
+            type="button"
+            className={`${styles.jogReset} ${styles.simPrimary}`}
+            disabled={jogDisabled}
+            title="완성된 그림을 지우고 카메라와 로봇만 남긴 STEP 1부터 다시 쌓아 올립니다."
+            onClick={startSim}>
+            START
+          </button>
+          <button
+            type="button"
+            className={styles.jogReset}
+            disabled={jogDisabled || simStep <= 1}
+            title="이전 단계로 되돌립니다."
+            onClick={() => goToStep(simStep - 1)}>
+            ◀ PREV
+          </button>
+          <button
+            type="button"
+            className={styles.jogReset}
+            disabled={jogDisabled || simStep === 0 || simStep >= PIPELINE_STEP_COUNT}
+            title="다음 단계로 넘어갑니다."
+            onClick={() => goToStep(simStep + 1)}>
+            NEXT ▶
+          </button>
+          <button
+            type="button"
+            className={styles.jogReset}
+            disabled={jogDisabled || simStep === 0}
+            title="시뮬레이션을 끄고 완성된 그림으로 돌아갑니다."
+            onClick={() => goToStep(0)}>
+            완성 상태
+          </button>
+          <span className={styles.simCounter} aria-live="polite">
+            {/* '완성 상태' 버튼과 같은 글자가 나란히 오면 헷갈리므로 재생 여부로 적는다. */}
+            {simStep === 0 ? '재생 전' : `${simStep} / ${PIPELINE_STEP_COUNT}`}
+          </span>
+        </div>
+        <p className={styles.simNote}>
+          <span className={styles.simBadge}>
+            {activeStep ? `STEP ${simStep} · ${activeStep.title}` : '완성'}
+          </span>
+          {activeStep
+            ? activeStep.detail
+            : 'START를 누르면 카메라와 로봇만 남기고, NEXT마다 Master · Scene · 화살표가 순서대로 쌓입니다. 재생 중에는 Master 드래그만 잠기고 로봇 조작은 그대로 됩니다.'}
+        </p>
         <div className={styles.toolbarGroup}>
           <span className={styles.toolbarTitle}>조그 기준</span>
           {JOG_MODES.map((mode) => (
@@ -345,7 +444,7 @@ export default function BinPickingPipeline({height}: {height?: number} = {}): Re
           <span className={styles.toolbarTitle}>조그</span>
           <span className={styles.jogGrid}>
             {jogMode === 'joint'
-              ? jointNames.map((name, index) => (
+              ? JOINT_NAMES.map((name, index) => (
                   <JogChip
                     key={name}
                     label={`J${index + 1}`}
@@ -377,8 +476,12 @@ export default function BinPickingPipeline({height}: {height?: number} = {}): Re
           <button
             type="button"
             className={styles.jogReset}
-            disabled={jogDisabled}
-            title="드래그로 옮긴 Master를 matching이 끝난 자리(Scene과 겹친 상태)로 되돌립니다."
+            disabled={jogDisabled || masterLocked}
+            title={
+              masterLocked
+                ? '시뮬레이션이 Master의 자리를 정하고 있어 지금은 쓸 수 없습니다.'
+                : '드래그로 옮긴 Master를 matching이 끝난 자리(Scene과 겹친 상태)로 되돌립니다.'
+            }
             onClick={() => sceneRef.current?.resetMaster()}>
             Master 원위치
           </button>
@@ -404,7 +507,11 @@ export default function BinPickingPipeline({height}: {height?: number} = {}): Re
         그대로 강체로 함께 움직이고, T_match와 P^camera_master 화살표만 새 위치에
         맞춰 다시 그려진다. Scene 쪽 화살표가 꼼짝하지 않는 것도 함께 보라 —
         움직인 것은 Master의 원점 하나뿐이기 때문이다. 'Master 원위치' 버튼으로
-        겹친 상태로 되돌릴 수 있다.
+        겹친 상태로 되돌릴 수 있다. 이 완성된 그림이 어떻게 만들어지는지 순서대로
+        보고 싶다면 툴바의 START를 누르면 된다 — 카메라와 로봇만 남은 상태에서
+        출발해 NEXT마다 Master · Scene · matching · 화살표 넷이 차례로 붙는다.
+        재생 중에는 시뮬레이션이 Master의 자리를 정하므로 Master 드래그만 잠기고,
+        로봇 조그와 궤도·확대는 그대로 쓸 수 있다.
       </figcaption>
     </figure>
   );
