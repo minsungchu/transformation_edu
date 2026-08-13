@@ -18,6 +18,7 @@ import {DEFAULT_ROBOT, ROBOT_MODELS} from './robots';
 import type {ArrowId, FrameName, MountMode} from './types';
 import {ALL_ARROWS, ALL_FRAMES, ARROW_DEFS, FRAME_LABELS} from './types';
 import type {RobotCellScene} from './scene';
+import {FullscreenButton, useViewerFullscreen} from './fullscreen';
 import styles from './styles.module.css';
 
 export interface RobotCellViewerProps {
@@ -68,6 +69,7 @@ export default function RobotCellViewer({
   const uid = useId();
   const containerRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<RobotCellScene | null>(null);
+  const {targetRef, isFullscreen, toggle: toggleFullscreen, widgetClassName} = useViewerFullscreen();
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -167,8 +169,11 @@ export default function RobotCellViewer({
   const hasToolbar = axesChoices.length > 0 || mountToggle || arrowChoices.length > 0;
 
   return (
-    <figure className={styles.widget}>
-      <div ref={containerRef} className={styles.container} style={height ? {height} : undefined}>
+    <figure ref={targetRef} className={`${styles.widget}${widgetClassName}`}>
+      <div
+        ref={containerRef}
+        className={styles.container}
+        style={height && !isFullscreen ? {height} : undefined}>
         {status === 'loading' && <div className={styles.overlay}>로봇 셀 불러오는 중…</div>}
         {status === 'error' && (
           <div className={`${styles.overlay} ${styles.error}`}>
@@ -178,6 +183,7 @@ export default function RobotCellViewer({
         {status === 'ready' && (
           <div className={styles.hint}>드래그: 회전 · 휠: 확대/축소 · 우클릭 드래그: 이동</div>
         )}
+        <FullscreenButton isFullscreen={isFullscreen} onToggle={toggleFullscreen} />
       </div>
       {hasToolbar && (
         <div className={styles.toolbar}>

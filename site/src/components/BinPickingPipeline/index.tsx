@@ -13,11 +13,13 @@
 import React, {useEffect, useMemo, useRef, useState, type ReactNode} from 'react';
 import useBaseUrl from '@docusaurus/useBaseUrl';
 import {DEFAULT_ROBOT, ROBOT_MODELS} from '../RobotCellViewer/robots';
+import {FullscreenButton, useViewerFullscreen} from '../RobotCellViewer/fullscreen';
 import type {PipelineScene} from './scene';
 import styles from '../RobotCellViewer/styles.module.css';
 
 export default function BinPickingPipeline({height}: {height?: number} = {}): ReactNode {
   const containerRef = useRef<HTMLDivElement>(null);
+  const {targetRef, isFullscreen, toggle: toggleFullscreen, widgetClassName} = useViewerFullscreen();
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -70,11 +72,14 @@ export default function BinPickingPipeline({height}: {height?: number} = {}): Re
   }, [config]);
 
   return (
-    <figure className={styles.widget} style={{margin: '2rem 0'}}>
+    <figure
+      ref={targetRef}
+      className={`${styles.widget}${widgetClassName}`}
+      style={isFullscreen ? undefined : {margin: '2rem 0'}}>
       <div
         ref={containerRef}
         className={styles.container}
-        style={height ? {height, borderRadius: 8} : {borderRadius: 8}}
+        style={isFullscreen ? undefined : height ? {height, borderRadius: 8} : {borderRadius: 8}}
         role="img"
         aria-label="Bin picking 파이프라인 개요 3D 씬: World 좌표계(로봇)에서 Camera 좌표계로의 T_cal, 카메라 원점 자리의 Master·Scene 이미지 원점, Scene을 감싸며 겹쳐진 Master와 박스 옆 허공에 떨어진 이동된 Master 원점, Scene 원점(카메라)에서 이동된 Master 원점으로의 T_match, 그리고 최종 답 P world scene">
         {status === 'loading' && <div className={styles.overlay}>파이프라인 씬 불러오는 중…</div>}
@@ -87,6 +92,8 @@ export default function BinPickingPipeline({height}: {height?: number} = {}): Re
           <div className={styles.hint}>드래그: 회전 · 휠: 확대/축소 · 우클릭 드래그: 이동</div>
         )}
       </div>
+      {/* role="img" 컨테이너 안에 두면 보조기기에 presentational로 숨겨지므로 형제로 둔다. */}
+      <FullscreenButton isFullscreen={isFullscreen} onToggle={toggleFullscreen} />
       <figcaption style={{fontSize: '0.85rem', opacity: 0.75, marginTop: '0.5rem', textAlign: 'center'}}>
         Bin picking 파이프라인 개요 — 이 교재의 표기법(ADR-0001)으로 그린 3D 씬.
         Master와 Scene의 이미지 원점은 원래 카메라 원점과 같고, Matching이

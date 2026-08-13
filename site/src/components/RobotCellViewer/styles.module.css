@@ -1,4 +1,5 @@
 .widget {
+  position: relative;
   margin: 0 0 var(--ifm-leading);
 }
 
@@ -93,4 +94,62 @@
   font-size: 0.75rem;
   color: #5b6878;
   pointer-events: none;
+}
+
+.fullscreenButton {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 6px;
+  background: rgba(11, 14, 19, 0.72);
+  color: #c7d0dc;
+  font-size: 1.05rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.fullscreenButton:hover {
+  background: rgba(30, 37, 48, 0.92);
+  color: #fff;
+}
+
+.fullscreenButton:focus-visible {
+  outline: 2px solid var(--ifm-color-primary);
+  outline-offset: 2px;
+}
+
+/* 전체 화면(네이티브 · 오버레이 폴백 공통) — 캔버스가 남은 공간을 채우도록
+   flex 컬럼으로 바꾸고 정사각형 aspect-ratio를 해제한다. 리사이즈 자체는
+   viewer-core의 ResizeObserver가 처리한다. */
+.isFullscreen {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  background: var(--ifm-background-color);
+}
+
+.isFullscreen .container {
+  flex: 1;
+  min-height: 0;
+  aspect-ratio: auto;
+  border-radius: 0;
+}
+
+.isFullscreen .toolbar {
+  border-radius: 0;
+}
+
+/* Fullscreen API 미지원/거부 환경 폴백 — 페이지 위 고정 오버레이(modal). */
+.overlayFullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
 }
