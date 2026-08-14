@@ -1,0 +1,172 @@
+/* RotationViewer 전용 스타일 — 위젯 셸·툴바·전체화면 버튼은
+   RobotCellViewer/styles.module.css를 그대로 쓴다. 여기에는 각도 슬라이더와
+   3×3 행렬 그리드만 있다. */
+
+/* ── 각도 슬라이더 ────────────────────────────────────────────────── */
+
+.sliderGroup {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.9rem;
+}
+
+.sliderRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.sliderLabel {
+  min-width: 1.6rem;
+  font-weight: 600;
+  font-family: 'KaTeX_Math', 'Times New Roman', serif;
+  font-style: italic;
+  font-size: 0.95rem;
+}
+
+.slider {
+  width: 8rem;
+  accent-color: var(--ifm-color-primary);
+  cursor: pointer;
+}
+
+.sliderValue {
+  min-width: 2.9rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.8rem;
+  color: var(--ifm-color-emphasis-700);
+}
+
+/* ── 3×3 회전 행렬 ────────────────────────────────────────────────── */
+
+.matrixGroup {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.4rem 1.2rem;
+  flex-basis: 100%;
+}
+
+.matrixBlock {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.matrixMuted {
+  opacity: 0.72;
+}
+
+.matrixLabel {
+  margin-right: 0.15rem;
+  font-family: 'KaTeX_Math', 'Times New Roman', serif;
+  font-style: italic;
+  font-size: 1rem;
+}
+
+/* 대괄호 — 행렬 양옆의 세로 획 */
+.bracket {
+  width: 0.32rem;
+  align-self: stretch;
+  border: 1px solid var(--ifm-color-emphasis-500);
+}
+
+.bracketLeft {
+  border-right: none;
+}
+
+.bracketRight {
+  border-left: none;
+}
+
+.columns {
+  display: inline-flex;
+  gap: 0.1rem;
+  padding: 0.15rem 0.1rem;
+}
+
+/* 열 하나 = 버튼 하나. 열 = 그 축의 방향벡터라는 게 이 위젯의 요점이라
+   열 단위로만 집을 수 있게 했다. */
+.column {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.05rem;
+  padding: 0.1rem 0.25rem;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.column:hover,
+.columnActive {
+  border-color: var(--axis-color);
+  background: color-mix(in srgb, var(--axis-color) 14%, transparent);
+}
+
+.column:focus-visible {
+  outline: 2px solid var(--axis-color);
+  outline-offset: 1px;
+}
+
+.colHead {
+  font-family: 'KaTeX_Math', 'Times New Roman', serif;
+  font-style: italic;
+  font-size: 0.75rem;
+  line-height: 1.2;
+  text-align: center;
+  color: var(--axis-color);
+}
+
+.cell {
+  min-width: 3.4rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.matrixNote {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--ifm-color-emphasis-700);
+}
+
+.badge {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 4px;
+  background: var(--ifm-color-warning-contrast-background);
+  color: var(--ifm-color-warning-contrast-foreground);
+  font-weight: 600;
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.badgeOk {
+  background: var(--ifm-color-success-contrast-background);
+  color: var(--ifm-color-success-contrast-foreground);
+}
+
+/* ── 점 p 좌표 표시 ───────────────────────────────────────────────── */
+
+.vectorRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem 1.2rem;
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.mono {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.8rem;
+  color: var(--ifm-color-emphasis-800);
+}

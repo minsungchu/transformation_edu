@@ -1,11 +1,11 @@
 ---
 id: index
-title: 5단계 · Hand-Eye
-sidebar_label: 5단계 · Hand-Eye
-description: 로봇 팔에 달린 카메라의 calibration (f2s)
+title: 5단계 · Calibration
+sidebar_label: 5단계 · Calibration
+description: World 좌표계와 Camera 좌표계의 관계를 알아내기 (w2s)
 ---
 
-# 5단계 · Hand-Eye (가제)
+# 5단계 · Calibration (가제)
 
 :::caution[미작성 챕터]
 
@@ -16,6 +16,6 @@ description: 로봇 팔에 달린 카메라의 calibration (f2s)
 
 ## 예정 내용
 
-- Robot Mount(카메라가 로봇 팔에 부착)에서의 calibration — f2s (Flange-To-Scene)
-- Hand-Eye에서의 matching과 좌표계 체인
-- w2s와 f2s의 비교
+- Calibration의 목표: $T_{cal} = T^{world}_{camera}$ 알아내기
+- Post Mount(카메라 고정)에서의 calibration — w2s (World-To-Scene)
+- Calibration 정확도가 파이프라인 전체에 미치는 영향

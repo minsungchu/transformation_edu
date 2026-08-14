@@ -1,11 +1,11 @@
 ---
 id: index
-title: 3단계 · Calibration
-sidebar_label: 3단계 · Calibration
-description: World 좌표계와 Camera 좌표계의 관계를 알아내기 (w2s)
+title: 3단계 · Transformation Matrix
+sidebar_label: 3단계 · Transformation Matrix
+description: 4×4 행렬의 구성, 좌표 변환, 체인룰
 ---
 
-# 3단계 · Calibration (가제)
+# 3단계 · Transformation Matrix (가제)
 
 :::caution[미작성 챕터]
 
@@ -16,6 +16,7 @@ description: World 좌표계와 Camera 좌표계의 관계를 알아내기 (w2s)
 
 ## 예정 내용
 
-- Calibration의 목표: $T_{cal} = T^{world}_{camera}$ 알아내기
-- Post Mount(카메라 고정)에서의 calibration — w2s (World-To-Scene)
-- Calibration 정확도가 파이프라인 전체에 미치는 영향
+- 4×4 Transformation Matrix의 구성 (회전 + 이동)
+- 좌표 표현의 변환: $P^{A} = T^{A}_{B} \cdot P^{B}$
+- 체인룰과 인접 인덱스 소거: $T^{A}_{C} = T^{A}_{B} \cdot T^{B}_{C}$
+- 역변환: $T^{B}_{A} = (T^{A}_{B})^{-1}$
