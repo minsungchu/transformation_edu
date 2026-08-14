@@ -1,0 +1,90 @@
+---
+id: euler-and-rpy
+title: 2-4. Euler와 RPY
+sidebar_label: 2-4. Euler와 RPY
+description: 무엇이 도는가, 다음 회전은 어느 축 기준인가 — 이 교재는 passive로 통일
+---
+
+import RotationViewer from '@site/src/components/RotationViewer';
+
+# 2-4. Euler와 RPY
+
+## 1. 무엇이 도는가
+
+같은 행렬 $R$을 두 가지로 읽을 수 있습니다.
+
+- **passive — 좌표계가 돈다**
+  - 점: 공간에 붙박여 있고, 좌표 표현만 바뀜
+  - 식: $P^{A} = R^{A}_{B} \cdot P^{B}$
+- **active — 물체가 돈다**
+  - 좌표계: 고정
+  - 식: $p' = R \cdot p$ — 점 자신이 옮겨 감
+- **혼동이 생기는 이유** — 행렬은 똑같고, 해석만 다름
+
+## 2. 다음 회전은 어느 축 기준인가
+
+회전을 세 번 이을 때, 두 관점은 서로 다른 기준을 씁니다.
+
+$$
+R = R_z(\alpha)\,R_y(\beta)\,R_x(\gamma)
+$$
+
+- **passive** — 다음 회전은 **방금 돌아간** 좌표계의 축 기준
+  - 순서: $z \to y' \to x''$ — 위 식을 왼쪽부터 읽음
+  - 다른 이름: intrinsic, Euler 각
+- **active** — 항상 **고정된** 기준 축
+  - 순서: $x \to y \to z$ — 위 식을 오른쪽부터 읽음
+  - 다른 이름: extrinsic, RPY (roll·pitch·yaw)
+- **핵심** — 둘은 대립이 아니라 같은 행렬의 두 읽기
+  - 대응: passive ZYX $(\alpha, \beta, \gamma)$ = active XYZ $(\gamma, \beta, \alpha)$
+  - 즉: 축 순서와 각을 함께 뒤집으면 같은 자세
+
+## 3. 표기가 갈리는 지점
+
+| 이름 | 회전 기준 |
+| :-- | :-- |
+| passive (Euler) | 방금 돌아간 축 |
+| active (RPY) | 고정된 기준 축 |
+
+- **각 세 개만으로는 부족** — 축 순서와 관점이 함께 있어야 자세가 확정됨
+- **장비·라이브러리마다 다름** — 기본 축 순서도, 관점도 통일돼 있지 않음
+  - 흔한 조합: ZYX passive, XYZ active
+  - 또 다른 표기: 회전벡터(축·각), 쿼터니언
+- **확인 방법** — 한 축만 $90^\circ$ 돌려 보고 예상과 맞는지 대조
+
+:::info[이 교재는 passive로 통일합니다]
+
+회전각 표현은 **passive Euler**로 적습니다 — 회전할 때마다 좌표계가 함께 돌고,
+다음 회전은 돌아간 좌표계 기준입니다. active(RPY)는 이 절처럼 개념을 비교할 때만
+언급합니다.
+
+- 이유: $T^{A}_{B}$ 표기와 체인룰이 그대로 이어짐
+
+:::
+
+## 4. 뷰어로 확인
+
+**관점** 토글을 passive와 active로 오가며 점 $p$가 어떻게 되는지 보세요.
+
+<RotationViewer
+  height={360}
+  matrix={false}
+  orderCompare={false}
+  defaultAngles={[30, 20, 0]}
+/>
+
+- **관찰 1 — passive** — 흐린 기준 축은 그대로, 진한 축만 돎
+  - 점 $p$: 제자리에 있고 숫자 두 벌($A$ 기준 / $B$ 기준)만 다름
+- **관찰 2 — active** — 축은 고정되고 $p$가 $R \cdot p$로 날아감
+  - 원래 자리: 흐린 화살표로 남음
+- **관찰 3 — order 바꾸기** — 슬라이더 라벨이 축 순서를 따라 바뀜
+  - 확인: 같은 각도라도 순서가 다르면 다른 자세 — 2-3절
+
+## 5. 정리
+
+- **passive** — 좌표계가 돎, $P^{A} = R^{A}_{B} P^{B}$
+- **active** — 물체가 돎, $p' = R p$
+- **대응** — passive ZYX $(\alpha,\beta,\gamma)$ = active XYZ $(\gamma,\beta,\alpha)$
+- **이 교재** — passive Euler로 통일
+
+다음 절에서는 이 행렬 자체를 읽는 법을 정리합니다.

@@ -3,9 +3,9 @@ import type {SidebarsConfig} from '@docusaurus/plugin-content-docs';
 /**
  * 교재 전체 목차 — 0~8단계 + 부록.
  *
- * 0단계만 작성 완료. 1단계의 챕터 구성(1-1 ~ 1-4)은 issue #1에서 확정된
- * 것이고, 2단계(회전)의 자리는 issue #18에서 확정됐다. 3~8단계·부록의
- * 제목은 가제다(챕터별 그릴링 세션에서 확정 — issue #1 Out of Scope 참조).
+ * 0~2단계 작성 완료. 1단계의 챕터 구성(1-1 ~ 1-4)은 issue #1, 2단계의
+ * 절 구성(2-1 ~ 2-5)은 issue #19에서 확정됐다. 3~8단계·부록의 제목은
+ * 가제다(챕터별 그릴링 세션에서 확정 — issue #1 Out of Scope 참조).
  */
 const sidebars: SidebarsConfig = {
   curriculumSidebar: [
@@ -25,7 +25,18 @@ const sidebars: SidebarsConfig = {
         'stage-1/notation-and-diagrams',
       ],
     },
-    {type: 'doc', id: 'stage-2/index', label: '2단계 · 회전'},
+    {
+      type: 'category',
+      label: '2단계 · 회전',
+      link: {type: 'doc', id: 'stage-2/index'},
+      items: [
+        'stage-2/rotation-in-2d',
+        'stage-2/axis-rotations-in-3d',
+        'stage-2/composing-rotations',
+        'stage-2/euler-and-rpy',
+        'stage-2/reading-a-rotation-matrix',
+      ],
+    },
     {type: 'doc', id: 'stage-3/index', label: '3단계 · Transformation Matrix'},
     {type: 'doc', id: 'stage-4/index', label: '4단계 · 조그와 로봇 모션'},
     {type: 'doc', id: 'stage-5/index', label: '5단계 · Calibration'},

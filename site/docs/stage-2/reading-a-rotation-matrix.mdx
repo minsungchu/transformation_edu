@@ -1,0 +1,132 @@
+---
+id: reading-a-rotation-matrix
+title: 2-5. 회전 행렬 읽기
+sidebar_label: 2-5. 회전 행렬 읽기
+description: 열 = 축의 방향벡터, orthonormal, 전치가 곧 역행렬
+---
+
+import RotationViewer from '@site/src/components/RotationViewer';
+import Quiz, {MultipleChoice, ShortAnswer, Math} from '@site/src/components/Quiz';
+
+# 2-5. 회전 행렬 읽기
+
+## 1. 열 = 축의 방향벡터
+
+회전 행렬은 외울 대상이 아니라 **읽을** 대상입니다. 열 세 개가 곧 타겟 좌표계의 축입니다.
+
+$$
+R^{A}_{B} =
+\begin{bmatrix}
+\vert & \vert & \vert \\
+\hat{x}_{B} & \hat{y}_{B} & \hat{z}_{B} \\
+\vert & \vert & \vert
+\end{bmatrix}
+$$
+
+- **1열** — $B$의 $x$축이 $A$에서 가리키는 방향
+- **2열, 3열** — 같은 방식으로 $B$의 $y$축, $z$축
+- **성분의 뜻** — 그 축을 $A$의 세 축에 각각 얼마나 투영했는가
+- **행은?** — $A$의 축을 $B$에서 본 방향 — 전치하면 열이 됨(3절)
+
+## 2. 열은 orthonormal
+
+- **각 열의 길이 $1$** — 축은 방향만 나타내므로 크기를 갖지 않음
+- **열끼리 직교** — 세 축이 서로 수직 (1-1절)
+- **한 줄로** — $R^{T} R = I$
+- **$\det R = +1$** — 오른손 좌표계를 유지한다는 뜻
+  - $-1$이면: 거울에 비친 왼손 좌표계 — 회전이 아님
+- **써먹는 곳** — 계산으로 얻은 행렬이 진짜 회전인지 검산
+
+## 3. 전치가 곧 역행렬
+
+$$
+(R^{A}_{B})^{-1} = (R^{A}_{B})^{T} = R^{B}_{A}
+$$
+
+- **뜻** — 역행렬을 구하는 일 = 기준과 타겟을 맞바꾸는 일
+  - $R^{A}_{B}$: $A$에서 본 $B$
+  - $R^{B}_{A}$: $B$에서 본 $A$
+- **이득** — 역행렬 계산 없이 행과 열만 바꾸면 끝
+  - 실무: 반대 방향 변환이 공짜
+- **왜 성립하나** — 열이 orthonormal이라서 $R^{T} R = I$ (2절)
+
+## 4. 뷰어로 확인
+
+행렬의 **열에 마우스를 올리면** 그 열이 가리키는 축만 씬에 남습니다. 열과 축을 눈으로
+붙여 보세요.
+
+<RotationViewer
+  height={360}
+  orderSelect={false}
+  orderCompare={false}
+  perspective={false}
+  vector={false}
+  defaultAngles={[35, 25, 0]}
+/>
+
+- **관찰 1 — 1열에 마우스** — 빨강 $x$축만 남음
+  - 대조: 열의 세 숫자 = 그 화살표가 향한 방향
+- **관찰 2 — 열의 길이 재기** — 세 성분 제곱합이 항상 $1$
+- **관찰 3 — 각도를 크게** — 숫자는 계속 바뀌지만 직교·길이는 그대로
+- **관찰 4 — 각도 초기화** — 단위행렬, 즉 두 좌표계가 겹친 상태
+
+## 5. 정리
+
+- **열** — 타겟 좌표계 축이 기준 좌표계에서 가리키는 방향벡터
+- **orthonormal** — 길이 $1$, 서로 직교, $\det = +1$
+- **$R^{T} = R^{-1}$** — 전치 = 기준과 타겟 맞바꾸기
+
+## 6. 이해 확인 퀴즈 — 2단계 마무리
+
+<Quiz>
+  <MultipleChoice
+    question={
+      <>
+        <Math tex="R^{A}_{B}" />의 <strong>2열</strong>이 뜻하는 것은?
+      </>
+    }
+    options={[
+      'B의 y축이 A에서 가리키는 방향벡터',
+      'A의 y축이 B에서 가리키는 방향벡터',
+      'B 원점의 y좌표',
+      'y축 둘레로 돈 각도',
+    ]}
+    answerIndex={0}
+    explanation={
+      <>
+        회전 행렬의 열은 타겟 좌표계의 축을 기준 좌표계에서 잰 방향벡터입니다.
+        1·2·3열이 각각 <Math tex="B" />의 x·y·z축입니다 — 2-5절.
+      </>
+    }
+  />
+  <MultipleChoice
+    question="같은 두 회전을 순서만 바꿔 곱했더니 결과가 같았습니다. 어떤 경우인가요?"
+    options={[
+      '두 회전의 축이 같은 경우',
+      '두 각이 모두 90°인 경우',
+      '두 각의 합이 180°인 경우',
+      '회전 행렬끼리는 항상 순서를 바꿔도 같다',
+    ]}
+    answerIndex={0}
+    explanation="회전은 일반적으로 비가환입니다. 다만 회전축이 같으면 각이 더해질 뿐이라 순서를 바꿔도 결과가 같습니다 — 2-3절."
+  />
+  <ShortAnswer
+    question={
+      <>
+        회전 행렬 <Math tex="R" />의 역행렬은 <Math tex="R" />을 ◯◯한 것과 같습니다.
+      </>
+    }
+    acceptedAnswers={['전치', '전치행렬', 'transpose', '트랜스포즈']}
+    displayAnswer="전치"
+    explanation={
+      <>
+        열이 orthonormal이므로 <Math tex="R^{T} R = I" />, 즉{' '}
+        <Math tex="R^{-1} = R^{T}" />입니다. 첨자로는 기준과 타겟을 맞바꾸는 것과 같습니다 —
+        2-5절.
+      </>
+    }
+  />
+</Quiz>
+
+2단계가 끝났습니다. 회전만으로는 아직 "어디에" 있는지를 적을 수 없습니다 — 위치까지
+함께 담는 4×4 행렬은 **3단계 · Transformation Matrix**에서 다룹니다.
