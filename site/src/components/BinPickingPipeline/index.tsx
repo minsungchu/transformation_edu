@@ -490,35 +490,6 @@ export default function BinPickingPipeline({height}: {height?: number} = {}): Re
         </div>
         <p className={`${styles.jogNote}${noteWarn ? ` ${styles.jogWarn}` : ''}`}>{noteText}</p>
       </div>
-      <figcaption style={{fontSize: '0.85rem', opacity: 0.75, marginTop: '0.5rem', textAlign: 'center'}}>
-        Bin picking 파이프라인 개요 — Master와 Scene의 이미지 원점은 원래
-        카메라 원점과 같고, Matching이 Master의 원점을 이동시켜 두 박스가
-        겹쳐진다. 이동된 원점은 Master와 함께 변환을 받아 물체 밖 허공에
-        떨어지고, T_match는 Scene
-        원점(카메라 자리)에서 그 이동된 Master 원점으로 향한다. 점선은
-        파이프라인의 중간 재료, 파란 실선은 로봇에게 최종적으로 필요한 답이다.
-        툴바의 조그로 로봇 팔을 움직여 봐도 이 화살표·박스는 제자리에 남는다 —
-        전부 World·Camera·Scene에 고정된 관계이기 때문이다. 플랜지에 달린 석션
-        그리퍼의 패드 끝단이 TCP이며, 회전(Rx·Ry·Rz) 조그를 Flange 기준과 TCP
-        기준으로 각각 눌러 보면 회전중심이 6축 원점인지 그리퍼 끝단인지에 따라
-        팔이 다르게 움직이는 것을 볼 수 있다. 손목의 노란 구체를 마우스로 끌면
-        축·스텝을 고르지 않고도 팔을 자유롭게 움직일 수 있다 — 매 프레임 IK를
-        풀어 따라오며, 도달 범위를 벗어난 목표는 무시하고 마지막 자세를 유지한다.
-        Master 박스를 끌어 Scene에서 떼어 놓으면 matching 전의 모습이 된다 —
-        박스·이동된 Master 원점·Master picking point는 matching이 만든 상대관계
-        그대로 강체로 함께 움직이고, T_match와 P^camera_master 화살표만 새 위치에
-        맞춰 다시 그려진다. Scene 쪽 화살표가 꼼짝하지 않는 것도 함께 보라 —
-        움직인 것은 Master의 원점 하나뿐이기 때문이다. 'Master 원위치' 버튼으로
-        겹친 상태로 되돌릴 수 있다. 이 완성된 그림이 어떻게 만들어지는지 순서대로
-        보고 싶다면 툴바의 START를 누르면 된다 — 카메라와 로봇만 남은 상태에서
-        출발해 NEXT마다 Master · Scene · matching · 화살표 넷이 차례로 붙고,
-        마지막 단계에서 로봇이 그 답을 실제로 쓴다: 계산된 P^world_scene을 TCP의
-        목표로 놓고, 석션 패드가 상면에 평평하게 닿도록 approach 축을 수직 아래로
-        세운 뒤 IK로 관절 해를 구해 홈 자세에서 부드럽게 이동한다. PREV로 돌아오면
-        홈 자세로 되돌아간다.
-        재생 중에는 시뮬레이션이 Master의 자리를 정하므로 Master 드래그만 잠기고,
-        로봇 조그와 궤도·확대는 그대로 쓸 수 있다.
-      </figcaption>
     </figure>
   );
 }
