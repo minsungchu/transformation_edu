@@ -44,9 +44,12 @@
  * 끝점이 움직이므로 정적 메시로 둘 수 없고, 끝점을 받아 다시 그리는 동적 화살표로
  * 만들어 드래그마다 갱신한다. Scene 쪽 요소는 카메라·World에 고정이라 그대로 남는다.
  *
- * **스텝 시뮬레이션**은 이 완성된 그림을 거꾸로 풀어 8단계로 다시 쌓아 보이는
+ * **스텝 시뮬레이션**은 이 완성된 그림을 거꾸로 풀어 9단계로 다시 쌓아 보이는
  * 장치다(`steps.ts`). 페이지에 들어오면 완성 상태(STEP 0)로 시작하고, START를
  * 누르면 카메라와 로봇만 남은 STEP 1로 돌아간 뒤 NEXT마다 요소가 하나씩 붙는다.
+ * 지도가 다 쌓인 뒤의 마지막 STEP에서는 **로봇이 그 답을 실제로 쓴다** — 계산된
+ * $P^{world}_{scene}$을 TCP 목표로 놓고 IK로 관절 해를 구해, 홈 자세에서 석션 패드가
+ * Scene 상면에 닿는 자세까지 관절을 보간한다. 앞 단계로 돌아가면 홈으로 되돌아간다.
  * 시뮬레이션이 켜져 있는 동안에는 **sim이 Master의 위치와 요소 가시성을 소유**하므로
  * 수동 Master 드래그를 잠근다 — 로봇 조그·free 드래그·궤도·최대화는 그대로 열려 있다.
  *
@@ -60,7 +63,7 @@ import {CSS2DObject} from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import URDFLoader from 'urdf-loader';
 import type {URDFRobot} from 'urdf-loader';
 import type {CartesianJogStep, JogControlFrame, KinematicChain, Vec3} from 'transform-core';
-import {Transform, jogTargetFlangePose, solveIk} from 'transform-core';
+import {Transform, flangePoseFromTcp, jogTargetFlangePose, solveIk} from 'transform-core';
 import {CELL_FRAMES, DEFAULT_CELL, createCellLayout} from '../RobotCellViewer/cell-layout';
 import type {SceneRobotConfig} from '../RobotCellViewer/scene';
 import {urdfSerialChain} from '../RobotCellViewer/urdf-chain';
@@ -135,7 +138,13 @@ const POINT_RED = '#e5484d';
 const BOX_SIZE: readonly [number, number, number] = [0.2, 0.15, 0.12];
 /** 박스 부양 높이 (m) — 물체는 공중에 떠 있다. */
 const BOX_ALTITUDE = 0.35;
-/** 박스 로컬 좌표의 picking point — Master와 Scene에서 같은 자리다. */
+/** Scene 박스의 z축 회전 (rad) — 마지막 STEP에서 그리퍼 방향을 여기에 맞춘다. */
+const SCENE_YAW = -0.3;
+/**
+ * 박스 로컬 좌표의 picking point — Master와 Scene에서 같은 자리다.
+ * z가 박스 높이(BOX_SIZE[2])와 같으므로 이 점은 **상면 위**에 있고, 그래서
+ * 마지막 STEP의 TCP 목표로 그대로 쓸 수 있다.
+ */
 const PICK_LOCAL: readonly [number, number, number] = [0.145, 0.095, 0.12];
 /** Master 몸체 불투명도 — 감싸인 Scene이 비쳐 보이도록 옅게, 잡을 때만 진하게. */
 const MASTER_BODY_OPACITY = 0.12;
@@ -424,6 +433,8 @@ const FADE_SECONDS = 0.4;
 const MASTER_MOVE_SECONDS = 0.9;
 /** 관절 자세가 홈으로 되돌아가는 시간 (초). */
 const POSE_SECONDS = 0.8;
+/** 마지막 STEP에서 홈 ↔ 집기 자세를 오가는 시간 (초) — 한 번에 튀지 않게 넉넉히. */
+const PICK_SECONDS = 1;
 /**
  * 한 프레임에 흘려보낼 시간의 상한 (초) — 탭을 다시 켜거나 렌더가 한참 멈췄다가
  * 돌아왔을 때 누적된 dt로 트윈이 통째로 건너뛰지 않게 한다.
@@ -548,7 +559,7 @@ export function createPipelineScene(options: PipelineSceneOptions): PipelineScen
   // 겹쳐진 기준 이미지 — 잔차 수준의 offset/회전만 남아 와이어프레임이
   // Scene을 감싼 것처럼 보인다.
   const tWorldScene = Transform.fromTranslation([0.53, -0.2, BOX_ALTITUDE]).compose(
-    Transform.rotationZ(-0.3),
+    Transform.rotationZ(SCENE_YAW),
   );
   const tWorldMaster = Transform.fromTranslation([0.546, -0.212, BOX_ALTITUDE + 0.008]).compose(
     Transform.rotationZ(-0.22),
@@ -768,6 +779,12 @@ export function createPipelineScene(options: PipelineSceneOptions): PipelineScen
   ];
   /** Master가 Scene 위로 옮겨가는 STEP — 이 단계부터 matching이 끝난 그림이다. */
   const MATCH_STEP = 4;
+  /**
+   * 로봇이 집기 자세로 가는 STEP — 지도가 다 쌓인 뒤의 마지막 단계다.
+   * 여기서만 관절을 건드리므로, 그 밖의 단계 전환은 사람이 조그해 둔 자세를
+   * 그대로 남긴다.
+   */
+  const PICK_STEP = PIPELINE_STEP_COUNT;
 
   /**
    * matching 전 Master 묶음의 위치 (masterGroup의 병진량).
@@ -805,10 +822,13 @@ export function createPipelineScene(options: PipelineSceneOptions): PipelineScen
     updateMasterArrows();
   };
 
-  /** 관절 자세를 목표값까지 보간한다 — 홈 복귀가 한 프레임에 튀지 않도록. */
-  const tweenJointsTo = (target: Readonly<Record<string, number>>): void => {
+  /** 관절 자세를 목표값까지 보간한다 — 자세 전환이 한 프레임에 튀지 않도록. */
+  const tweenJointsTo = (
+    target: Readonly<Record<string, number>>,
+    seconds = POSE_SECONDS,
+  ): void => {
     const from = {...jointValues};
-    animate(JOINT_KEY, POSE_SECONDS, (progress) => {
+    animate(JOINT_KEY, seconds, (progress) => {
       for (const [name, goal] of Object.entries(target)) {
         const start = from[name];
         if (start !== undefined) {
@@ -821,6 +841,54 @@ export function createPipelineScene(options: PipelineSceneOptions): PipelineScen
   /** 사람이 직접 팔을 움직이기 시작하면 진행 중인 자세 트윈을 놓아준다. */
   const cancelJointTween = (): void => {
     tweens.delete(JOINT_KEY);
+  };
+
+  // ── 마지막 STEP의 집기 자세 ───────────────────────────────────────
+  /**
+   * 계산이 끝난 답 $P^{world}_{scene}$을 실제 관절값으로 바꾼 결과.
+   *
+   * 파이프라인이 내놓는 것은 **TCP의 목표**이지 관절값이 아니다. 그 간극을 메우는
+   * 순서가 그대로 여기에 있다:
+   *
+   * 1. **목표 TCP pose** — 위치는 `scenePick`(= $P^{world}_{scene}$, 이미 박스
+   *    상면 위의 점)이고, 자세는 approach 축(TCP의 +z)이 상면 법선의 반대인
+   *    world −Z를 향하도록 x축 180°를 준다. 그래야 석션 패드가 상면에 비스듬히
+   *    걸리지 않고 평평하게 맞닿는다. z축 회전은 상면 법선을 바꾸지 않으므로
+   *    자유롭게 고를 수 있고, 박스와 나란해 보이도록 Scene의 yaw를 얹는다.
+   * 2. **flange 목표** — IK가 푸는 체인의 끝점은 TCP가 아니라 플랜지이므로
+   *    $T^{base}_{flange} = T^{base}_{tcp}\cdot(T^{flange}_{tcp})^{-1}$로 되돌린다
+   *    (조그가 쓰는 것과 같은 변환).
+   * 3. **IK** — 홈 자세를 seed로 두어 여러 해 중 홈에서 가장 가까운 것으로
+   *    수렴시킨다. 그래야 이어지는 관절 보간이 팔을 크게 휘두르지 않는다.
+   *
+   * 결과는 한 번만 풀고 재사용한다 (`undefined` = 아직 안 풀어 봄, `null` = 못 품).
+   */
+  let pickPose: Record<string, number> | null | undefined;
+  const resolvePickPose = (): Record<string, number> | null => {
+    if (pickPose !== undefined) {
+      return pickPose;
+    }
+    if (!chain) {
+      return null; // 체인이 아직 없다 — 다음 기회에 다시 풀어 본다
+    }
+    const pickInBase = tRobotBaseWorld.transformPoint([scenePick.x, scenePick.y, scenePick.z]);
+    const tcpTarget = Transform.fromTranslation(pickInBase)
+      .compose(Transform.rotationZ(SCENE_YAW))
+      .compose(Transform.rotationX(Math.PI));
+    const result = solveIk(
+      chain,
+      flangePoseFromTcp(tcpTarget, T_FLANGE_TCP),
+      robotConfig.jointValues,
+      {maxIterations: 200},
+    );
+    if (!result.converged) {
+      // 도달 범위 밖이면 로봇은 홈에 그대로 둔다 — 나머지 그림은 정상이다.
+      console.warn('집기 자세의 IK가 수렴하지 못해 STEP 마지막에서 로봇을 움직이지 않습니다');
+      pickPose = null;
+      return null;
+    }
+    pickPose = result.values;
+    return pickPose;
   };
 
   /**
@@ -872,6 +940,16 @@ export function createPipelineScene(options: PipelineSceneOptions): PipelineScen
     for (const entry of REVEAL_AT) {
       const target = showsEverything(clamped) || clamped >= entry.step ? 1 : 0;
       fadeTo(entry.fade, target, entry.fade === masterFade ? onMasterFadeDone : undefined);
+    }
+
+    // 로봇 자세는 집기 STEP을 드나들 때만 움직인다 — PREV로 나오면 홈으로 되돌아간다.
+    if (clamped === PICK_STEP && previous !== PICK_STEP) {
+      const pose = resolvePickPose();
+      if (pose) {
+        tweenJointsTo(pose, PICK_SECONDS);
+      }
+    } else if (previous === PICK_STEP && clamped !== PICK_STEP) {
+      tweenJointsTo(robotConfig.jointValues, PICK_SECONDS);
     }
 
     // 잠기는 순간 Master를 잡고 있었거나 hover 강조가 남아 있으면 여기서 놓아준다.

@@ -27,6 +27,8 @@
  *
  * 툴바 맨 위에는 **스텝 시뮬레이션**이 있다 — 완성된 그림을 거꾸로 풀어, 카메라와
  * 로봇만 있는 상태에서 시작해 NEXT마다 요소를 하나씩 쌓아 올린다(`steps.ts`).
+ * 마지막 단계에서는 로봇이 계산된 $P^{world}_{scene}$으로 이동해 석션 패드를 Scene
+ * 상면에 얹는다 — 좌표 계산이 자세로 바뀌는 지점이다.
  * 재생 중에는 씬이 Master의 위치를 소유하므로 수동 Master 드래그만 잠기고, 로봇
  * 조그·궤도·최대화는 그대로 쓸 수 있다.
  */
@@ -327,7 +329,7 @@ export default function BinPickingPipeline({height}: {height?: number} = {}): Re
         className={styles.container}
         style={isFullscreen || !height ? undefined : {height}}
         role="img"
-        aria-label="Bin picking 파이프라인 개요 3D 씬: World 좌표계(로봇)에서 Camera 좌표계로의 T_cal, 카메라 원점 자리의 Master·Scene 이미지 원점, Scene을 감싸며 겹쳐진 Master와 박스 옆 허공에 떨어진 이동된 Master 원점, Scene 원점(카메라)에서 이동된 Master 원점으로의 T_match, 그리고 최종 답 P world scene. 로봇은 팔을 뒤로 접은 홈 자세로 서 있고, 플랜지에는 석션 그리퍼가 달려 있으며 패드 끝단이 TCP다. 손목에는 마우스로 끌어 팔을 자유롭게 움직일 수 있는 노란 구체 드래그 핸들이 붙어 있다. Master 박스는 마우스로 끌어 옮길 수 있고, 이동된 Master 원점과 picking point가 상대관계를 유지한 채 함께 움직이며 T_match 화살표가 실시간으로 다시 그려진다. 툴바의 START/NEXT/PREV 버튼으로 이 그림을 8단계에 걸쳐 처음부터 쌓아 올리는 시뮬레이션을 재생할 수 있다">
+        aria-label="Bin picking 파이프라인 개요 3D 씬: World 좌표계(로봇)에서 Camera 좌표계로의 T_cal, 카메라 원점 자리의 Master·Scene 이미지 원점, Scene을 감싸며 겹쳐진 Master와 박스 옆 허공에 떨어진 이동된 Master 원점, Scene 원점(카메라)에서 이동된 Master 원점으로의 T_match, 그리고 최종 답 P world scene. 로봇은 팔을 뒤로 접은 홈 자세로 서 있고, 플랜지에는 석션 그리퍼가 달려 있으며 패드 끝단이 TCP다. 손목에는 마우스로 끌어 팔을 자유롭게 움직일 수 있는 노란 구체 드래그 핸들이 붙어 있다. Master 박스는 마우스로 끌어 옮길 수 있고, 이동된 Master 원점과 picking point가 상대관계를 유지한 채 함께 움직이며 T_match 화살표가 실시간으로 다시 그려진다. 툴바의 START/NEXT/PREV 버튼으로 이 그림을 9단계에 걸쳐 처음부터 쌓아 올리는 시뮬레이션을 재생할 수 있고, 마지막 단계에서는 로봇이 홈 자세에서 Scene을 집는 자세로 이동해 석션 패드 끝단이 Scene 박스 상면에 맞닿는다">
         {status === 'loading' && <div className={styles.overlay}>파이프라인 씬 불러오는 중…</div>}
         {status === 'error' && (
           <div className={`${styles.overlay} ${styles.error}`}>
@@ -392,7 +394,7 @@ export default function BinPickingPipeline({height}: {height?: number} = {}): Re
           </span>
           {activeStep
             ? activeStep.detail
-            : 'START를 누르면 카메라와 로봇만 남기고, NEXT마다 Master · Scene · 화살표가 순서대로 쌓입니다. 재생 중에는 Master 드래그만 잠기고 로봇 조작은 그대로 됩니다.'}
+            : 'START를 누르면 카메라와 로봇만 남기고, NEXT마다 Master · Scene · 화살표가 순서대로 쌓인 뒤 마지막에 로봇이 그 답으로 집으러 갑니다. 재생 중에는 Master 드래그만 잠기고 로봇 조작은 그대로 됩니다.'}
         </p>
         <div className={styles.toolbarGroup}>
           <span className={styles.toolbarTitle}>조그 기준</span>
@@ -509,7 +511,11 @@ export default function BinPickingPipeline({height}: {height?: number} = {}): Re
         움직인 것은 Master의 원점 하나뿐이기 때문이다. 'Master 원위치' 버튼으로
         겹친 상태로 되돌릴 수 있다. 이 완성된 그림이 어떻게 만들어지는지 순서대로
         보고 싶다면 툴바의 START를 누르면 된다 — 카메라와 로봇만 남은 상태에서
-        출발해 NEXT마다 Master · Scene · matching · 화살표 넷이 차례로 붙는다.
+        출발해 NEXT마다 Master · Scene · matching · 화살표 넷이 차례로 붙고,
+        마지막 단계에서 로봇이 그 답을 실제로 쓴다: 계산된 P^world_scene을 TCP의
+        목표로 놓고, 석션 패드가 상면에 평평하게 닿도록 approach 축을 수직 아래로
+        세운 뒤 IK로 관절 해를 구해 홈 자세에서 부드럽게 이동한다. PREV로 돌아오면
+        홈 자세로 되돌아간다.
         재생 중에는 시뮬레이션이 Master의 자리를 정하므로 Master 드래그만 잠기고,
         로봇 조그와 궤도·확대는 그대로 쓸 수 있다.
       </figcaption>
