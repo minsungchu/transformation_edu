@@ -63,10 +63,6 @@ const config: Config = {
         },
       ],
     },
-    footer: {
-      style: 'dark',
-      copyright: `Copyright © ${new Date().getFullYear()} CMES Robotics.`,
-    },
     prism: {
       theme: prismThemes.github,
       darkTheme: prismThemes.dracula,
