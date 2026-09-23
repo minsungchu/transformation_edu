@@ -3,7 +3,7 @@ import type {SidebarsConfig} from '@docusaurus/plugin-content-docs';
 /**
  * 교재 전체 목차 — 0~8단계 + 부록.
  *
- * 편집 중: 지금은 0단계(전체 Overview)만 사이드바에 노출한다. 나머지 단계는
+ * 편집 중: 지금은 0~1단계만 사이드바에 노출한다. 나머지 단계는
  * 아래 주석 블록에 그대로 보존해 두었고, 한 단계씩 편집·검토하며 다시 켠다.
  * (페이지 파일은 그대로 있으므로 URL로는 접근 가능 — 내비게이션에서만 숨김.)
  *
@@ -20,13 +20,14 @@ const sidebars: SidebarsConfig = {
       label: '0단계 · 오리엔테이션',
     },
 
+    {
+      type: 'category',
+      label: '1단계 · 로봇 용어와 좌표계',
+      link: {type: 'doc', id: 'stage-1/index'},
+      items: ['stage-1/robot-terms', 'stage-1/jogging'],
+    },
+
     // ── 숨김 — 편집하며 한 단계씩 위로 옮겨 켠다 ──────────────────────
-    // {
-    //   type: 'category',
-    //   label: '1단계 · 로봇 용어와 좌표계',
-    //   link: {type: 'doc', id: 'stage-1/index'},
-    //   items: ['stage-1/robot-terms', 'stage-1/jogging'],
-    // },
     // {
     //   type: 'category',
     //   label: '2단계 · 회전',
