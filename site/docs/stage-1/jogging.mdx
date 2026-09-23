@@ -6,7 +6,7 @@ description: Joint · Base · TCP · Flange · User — 같은 버튼, 다른 �
 ---
 
 import RobotJogViewer from '@site/src/components/RobotJogViewer';
-import Quiz, {MultipleChoice, ShortAnswer} from '@site/src/components/Quiz';
+import Quiz, {MultipleChoice} from '@site/src/components/Quiz';
 
 # 1-2. 조깅 연습
 
@@ -108,12 +108,6 @@ World 기준 숫자로 나옵니다 — 버튼을 누를 때마다 어느 숫자
     options={['회전중심이 다르다', '회전 방향이 반대다', '회전 속도가 다르다', 'Flange 기준은 회전이 불가능하다']}
     answerIndex={0}
     explanation="축 방향은 같지만 TCP 기준은 그리퍼 끝단을, Flange 기준은 6축 원점을 중심으로 돕니다. 그래서 Flange 기준 회전에서는 끝단이 원호를 그리며 크게 움직입니다 — 1-2절."
-  />
-  <ShortAnswer
-    question="비스듬히 놓인 작업대 모서리를 따라 곧게 이동하려면 어떤 기준으로 조깅해야 하나요? (영어로)"
-    acceptedAnswers={['user', 'user frame', 'user 좌표계', '유저']}
-    displayAnswer="User"
-    explanation="User 좌표계를 작업대에 맞춰 정의하면, 그 축 방향으로 조깅할 수 있습니다 — 1-2절."
   />
 </Quiz>
 
