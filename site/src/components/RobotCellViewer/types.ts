@@ -17,7 +17,7 @@ export const FRAME_LABELS: Record<FrameName, string> = {
 
 export const ALL_FRAMES: readonly FrameName[] = ['world', 'flange', 'tool', 'camera'];
 
-/** 카메라 설치 방식 — Post Mount(고정) vs Robot Mount(플랜지에 부착). */
+/** 카메라 설치 방식 — Fixed Post(Eye-to-Hand, 고정 구조물) vs Hand-Eye(Eye-in-Hand, 플랜지에 부착). 값 이름은 옛 용어를 유지한다. */
 export type MountMode = 'post' | 'robot';
 
 /**

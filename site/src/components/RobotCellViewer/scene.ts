@@ -13,6 +13,7 @@ import URDFLoader from 'urdf-loader';
 import type {URDFRobot} from 'urdf-loader';
 import type {CellDimensions} from './cell-layout';
 import {CELL_FRAMES, DEFAULT_CELL, createCellLayout, robotMountOffset} from './cell-layout';
+import {TOOL_LENGTH, buildSuctionGripper} from './gripper';
 import type {ArrowId, FrameName, MountMode} from './types';
 import {ARROW_DEFS} from './types';
 import {
@@ -87,15 +88,6 @@ export function createRobotCellScene(options: RobotCellSceneOptions): RobotCellS
   const tWorldRobotBase = frames.getTransform(CELL_FRAMES.world, CELL_FRAMES.robotBase);
   const tFlangeCamera = robotMountOffset();
 
-  // User 좌표계의 예로 쓰는 기준점 — 공중에 떠 있는 소형 축 (1-2절 본문이 참조).
-  const userFrameMarker = new THREE.Group();
-  userFrameMarker.position.set(cell.cameraDistance, 0, 0.35);
-  userFrameMarker.add(buildFrameAxes(0.12));
-  const userFrameLabel = new THREE.Object3D();
-  userFrameLabel.position.set(0, 0, 0.08);
-  userFrameLabel.add(new CSS2DObject(buildTextLabel('User 좌표계 예시', '#aeb8c4')));
-  userFrameMarker.add(userFrameLabel);
-  worldRoot.add(userFrameMarker);
 
   // Post Mount 카메라는 공중의 고정 위치에 떠 있다 (기둥 mesh 없음).
   const cameraGlyph = buildCameraGlyph();
@@ -239,8 +231,19 @@ export function createRobotCellScene(options: RobotCellSceneOptions): RobotCellS
     applyTransform(robot, tWorldRobotBase);
     worldRoot.add(robot);
 
+    // frameLinks.tool(UR의 `tool0`)은 플랜지와 원점이 같은 ROS-Industrial 표준 프레임이다.
+    // 여기에 석션 그리퍼를 달고, TCP(Tool 좌표계) 앵커는 그리퍼 끝단(z = TOOL_LENGTH)에 둔다 —
+    // 그래야 Flange와 Tool이 실제로 떨어져 보인다.
+    const flangeLink = robot.links[robotConfig.frameLinks.tool] ?? null;
+    let tcpAnchor: THREE.Object3D | null = null;
+    if (flangeLink) {
+      flangeLink.add(buildSuctionGripper());
+      tcpAnchor = new THREE.Object3D();
+      tcpAnchor.position.z = TOOL_LENGTH;
+      flangeLink.add(tcpAnchor);
+    }
     anchors.set('flange', robot.links[robotConfig.frameLinks.flange] ?? null);
-    anchors.set('tool', robot.links[robotConfig.frameLinks.tool] ?? null);
+    anchors.set('tool', tcpAnchor);
     attachAxes('flange');
     attachAxes('tool');
     applyMount();

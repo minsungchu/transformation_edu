@@ -24,7 +24,7 @@ const sidebars: SidebarsConfig = {
       type: 'category',
       label: '1단계 · 로봇 용어와 좌표계',
       link: {type: 'doc', id: 'stage-1/index'},
-      items: ['stage-1/robot-terms', 'stage-1/jogging'],
+      items: ['stage-1/robot-terms', 'stage-1/jogging', 'stage-1/vision-frames-and-mount'],
     },
 
     // ── 숨김 — 편집하며 한 단계씩 위로 옮겨 켠다 ──────────────────────

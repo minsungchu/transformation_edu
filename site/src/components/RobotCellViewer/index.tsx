@@ -32,7 +32,7 @@ export interface RobotCellViewerProps {
   axes?: boolean | readonly FrameName[];
   /** 처음부터 켜 둘 축. */
   defaultAxes?: readonly FrameName[];
-  /** Post ↔ Robot Mount 전환 토글 노출 여부. */
+  /** Fixed Post(Eye-to-Hand) ↔ Hand-Eye(Eye-in-Hand) 전환 토글 노출 여부. */
   mountToggle?: boolean;
   /** 초기 Mount 방식. */
   defaultMount?: MountMode;
@@ -213,7 +213,7 @@ export default function RobotCellViewer({
                     checked={mount === mode}
                     onChange={() => changeMount(mode)}
                   />
-                  {mode === 'post' ? 'Post' : 'Robot'}
+                  {mode === 'post' ? 'Fixed Post (Eye-to-Hand)' : 'Hand-Eye (Eye-in-Hand)'}
                 </label>
               ))}
             </div>

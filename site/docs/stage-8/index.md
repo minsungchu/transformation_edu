@@ -16,7 +16,7 @@ description: 로봇 팔에 달린 카메라의 calibration과 그 전체 체인 
 
 ## 예정 내용
 
-- Robot Mount(카메라가 로봇 팔에 부착)에서의 calibration — f2s (Flange-To-Scene)
+- Hand-Eye(Eye-in-Hand, 카메라가 로봇 팔에 부착)에서의 calibration — f2s (Flange-To-Scene)
 - Hand-Eye에서의 matching과 좌표계 체인
 - w2s와 f2s의 비교
 - Bin picking 종합(7단계)과 나란히 놓고 읽는 전체 체인

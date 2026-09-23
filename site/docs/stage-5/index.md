@@ -17,5 +17,5 @@ description: World 좌표계와 Camera 좌표계의 관계를 알아내기 (w2s)
 ## 예정 내용
 
 - Calibration의 목표: $T_{cal} = T^{world}_{camera}$ 알아내기
-- Post Mount(카메라 고정)에서의 calibration — w2s (World-To-Scene)
+- Fixed Post(Eye-to-Hand, 카메라 고정)에서의 calibration — w2s (World-To-Scene)
 - Calibration 정확도가 파이프라인 전체에 미치는 영향

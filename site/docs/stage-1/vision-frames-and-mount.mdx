@@ -1,0 +1,144 @@
+---
+id: vision-frames-and-mount
+title: 1-3. 비전-로봇의 좌표계와 센서 부착 방식
+sidebar_label: 1-3. 비전-로봇 좌표계·부착 방식
+description: World · Tool · Camera 좌표계는 각각 무엇을 설명하는 기준인가, 그리고 카메라를 어디에 다는가 — Fixed Post와 Hand-Eye
+---
+
+import RobotCellViewer from '@site/src/components/RobotCellViewer';
+import Quiz, {MultipleChoice} from '@site/src/components/Quiz';
+
+# 1-3. 비전-로봇의 좌표계와 센서 부착 방식
+
+## 1. 좌표"계"의 뜻 — 무엇을 설명하는 기준인가
+
+좌표계의 **계**는 "그 기준으로 어떤 좌표를 설명할 수 있다"는 뜻입니다. 좌표계마다
+설명하는 대상이 다릅니다.
+
+- **World 좌표계** — 로봇의 위치를 설명하는 기준
+  - 예: "TCP가 $(650,\ 120,\ 300)$에 있다" — World 기준 좌표
+- **Camera 좌표계** — 촬영된 이미지 안의 점을 설명하는 기준
+  - 예: 3D 카메라가 찍은 물체 위의 한 점 — Camera 기준 좌표
+- **Tool 좌표계(TCP)** — 오프셋을 설명하는 기준
+  - 예: "공구 끝에서 $-z$로 $50\ \text{mm}$" — 접근·후퇴 거리는 Tool 기준으로 적음
+- **비전-로봇 응용의 질문** — Camera 기준으로 본 점을 World 기준으로 옮기려면?
+  - 이 교재 나머지 전부가 이 질문에 대한 답
+
+## 2. 세 좌표계
+
+- **① World 좌표계** — 로봇 Base 기준
+  - 다른 이름: Robot 좌표계, Base 좌표계
+  - 이 교재: **World 좌표계**로 통일
+- **② Tool 좌표계** — Tooltip(TCP) 기준
+  - 다른 이름: TCP 좌표계
+  - 위치: 1-1절의 TCP — 공구 끝점
+- **③ Camera 좌표계** — Camera(Sensor) 기준
+  - 다른 이름: Sensor 좌표계, Scene 좌표계
+  - 이 교재: **Camera 좌표계**로 통일
+  - 축: +z가 광축 — 카메라가 바라보는 방향
+
+## 3. 센서 부착 방식 — 카메라를 어디에 다는가
+
+카메라를 어디에 달지에 따라 **Camera 좌표계가 무엇에 붙어 있는지**가 달라집니다.
+
+- **Fixed Post (Eye-to-Hand)** — 기둥·프레임 같은 고정 구조물에 설치
+  - 뜻: 눈(카메라)이 손(로봇)을 바라봄
+  - Camera 좌표계: 셀에 고정 — 로봇이 움직여도 그대로
+  - 변하지 않는 관계: World ↔ Camera
+- **Hand-Eye (Eye-in-Hand)** — 로봇 플랜지 쪽에 부착
+  - 뜻: 눈이 손에 달려 있음
+  - Camera 좌표계: 로봇과 함께 움직임
+  - 변하지 않는 관계: Flange ↔ Camera
+- **왜 중요한가** — "변하지 않는 관계"가 나중에 배울 calibration이 구하는 값
+  - Fixed Post: 한 번 구하면 끝
+  - Hand-Eye: 로봇 자세마다 World ↔ Camera가 달라지므로 매번 다시 계산
+
+:::info[용어 통일]
+
+자료에 따라 Post Mount / Robot Mount라고도 부릅니다. 이 교재는 **Fixed Post
+(Eye-to-Hand)**, **Hand-Eye (Eye-in-Hand)**로 통일합니다.
+
+:::
+
+## 4. 뷰어로 확인 — Fixed Post (Eye-to-Hand)
+
+카메라가 로봇 앞 공중의 고정 위치에 떠 있습니다. 화살표는 World 좌표계 원점에서
+Camera 좌표계 원점으로 향하는 두 좌표계의 관계입니다.
+
+<RobotCellViewer
+  defaultMount="post"
+  mountToggle={false}
+  axes={['world', 'tool', 'camera']}
+  defaultAxes={['world', 'tool', 'camera']}
+  arrows={['world-camera']}
+  defaultArrows={['world-camera']}
+/>
+
+- **Camera 축** — 파란 $z$축(광축)이 아래를 내려다봄
+- **씬 돌려 보기** — World와 Camera 사이 화살표는 어느 각도에서도 같은 자리
+  - 뜻: 로봇이 어떻게 움직여도 이 관계는 변하지 않음
+- **Tool 축** — 그리퍼 끝단, 로봇에 붙어 있음
+
+## 5. 뷰어로 확인 — Hand-Eye (Eye-in-Hand)
+
+같은 셀에서 카메라를 플랜지 옆으로 옮겼습니다. 이번에는 Flange 좌표계에서 Camera
+좌표계로 향하는 화살표를 켜 두었습니다.
+
+<RobotCellViewer
+  defaultMount="robot"
+  mountToggle={false}
+  axes={['world', 'flange', 'tool', 'camera']}
+  defaultAxes={['world', 'tool', 'camera']}
+  arrows={['flange-camera', 'world-camera']}
+  defaultArrows={['flange-camera']}
+/>
+
+- **Camera 축** — 그리퍼 옆, 광축이 그리퍼가 뻗는 방향과 나란함
+- **Flange → Camera 화살표** — 짧고 고정 — 볼트로 붙어 있으니 변하지 않음
+- **World → Camera 화살표 켜기** — 로봇 자세에 따라 달라지는 관계
+  - 비교: 4절의 Fixed Post에서는 이 화살표가 고정이었음
+
+## 6. 정리
+
+| 좌표계 | 기준 | 설명하는 것 | 통일 전 이름 |
+| :-- | :-- | :-- | :-- |
+| **World** | 로봇 Base | 로봇의 위치 | Robot, Base 좌표계 |
+| **Tool** | TCP | 오프셋(접근·후퇴) | TCP 좌표계 |
+| **Camera** | 카메라(Sensor) | 이미지 안의 점 | Sensor, Scene 좌표계 |
+
+| 부착 방식 | 카메라 위치 | Camera 좌표계 | 변하지 않는 관계 |
+| :-- | :-- | :-- | :-- |
+| **Fixed Post** (Eye-to-Hand) | 고정 구조물 | 셀에 고정 | World ↔ Camera |
+| **Hand-Eye** (Eye-in-Hand) | 로봇 플랜지 | 로봇과 함께 움직임 | Flange ↔ Camera |
+
+## 7. 이해 확인 퀴즈 — 1단계 마무리
+
+<Quiz>
+  <MultipleChoice
+    question="3D 카메라가 찍은 물체 위의 한 점은 처음에 어느 좌표계 기준으로 얻어지나요?"
+    options={['Camera 좌표계', 'World 좌표계', 'Tool 좌표계', 'User 좌표계']}
+    answerIndex={0}
+    explanation="카메라가 본 모든 점은 Camera 좌표계 기준입니다. 이것을 World 좌표계로 옮기는 것이 비전-로봇 응용의 핵심 질문입니다 — 1-3절 1항."
+  />
+  <MultipleChoice
+    question="공구 끝에서 접근 방향으로 50 mm 물러난 지점 같은 오프셋은 주로 어느 좌표계를 기준으로 적나요?"
+    options={['Tool 좌표계', 'World 좌표계', 'Camera 좌표계', 'Flange 좌표계']}
+    answerIndex={0}
+    explanation="오프셋은 공구가 뻗는 방향을 기준으로 적어야 자세가 바뀌어도 뜻이 같습니다. 그래서 Tool(TCP) 좌표계가 기준입니다 — 1-3절 1항."
+  />
+  <MultipleChoice
+    question="Hand-Eye (Eye-in-Hand) 방식에서 로봇이 어떤 자세를 취해도 변하지 않는 관계는?"
+    options={['Flange ↔ Camera', 'World ↔ Camera', 'World ↔ Tool', 'Camera ↔ User']}
+    answerIndex={0}
+    explanation="카메라가 플랜지 쪽에 볼트로 붙어 있으므로 Flange ↔ Camera가 고정입니다. Fixed Post에서는 반대로 World ↔ Camera가 고정입니다 — 1-3절 3항."
+  />
+  <MultipleChoice
+    question="카메라를 기둥에 고정해 로봇을 내려다보게 설치하는 방식을 이 교재에서 부르는 이름은?"
+    options={['Fixed Post (Eye-to-Hand)', 'Hand-Eye (Eye-in-Hand)', 'Robot Mount', 'Tool Mount']}
+    answerIndex={0}
+    explanation="고정 구조물에 설치하면 Fixed Post, 눈이 손을 바라본다는 뜻의 Eye-to-Hand입니다. Post Mount라는 옛 이름은 쓰지 않습니다 — 1-3절 3항."
+  />
+</Quiz>
+
+1단계가 끝났습니다. 로봇의 세 지점, 비전-로봇의 좌표계 세 가지, 카메라를 다는
+두 방식을 익혔습니다. 다음은 좌표계 사이의 **관계**를 숫자로 적는 일입니다.

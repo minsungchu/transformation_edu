@@ -41,6 +41,16 @@ _Avoid_: Sensor 좌표계, Scene 좌표계
 **User 좌표계**:
 작업대·지그 등 작업 환경을 기준으로 사용자가 직접 정의하는 좌표계. 수식으로는 $T^{world}_{user}$ 하나로 표현되며, 조그(jog)의 기준 좌표계 선택지(world / tcp / user) 중 하나다.
 
+### 센서 부착 방식 (Mount)
+
+**Fixed Post (Eye-to-Hand)**:
+카메라를 기둥·프레임 등 고정 구조물에 설치하는 방식. Camera 좌표계가 셀에 고정되어 World 좌표계와의 관계 $T^{world}_{camera}$가 상수다. 눈(카메라)이 손(로봇)을 바라본다는 뜻의 Eye-to-Hand.
+_Avoid_: Post Mount, 고정 마운트
+
+**Hand-Eye (Eye-in-Hand)**:
+카메라를 로봇 플랜지 쪽에 부착하는 방식. Camera 좌표계가 로봇과 함께 움직이며 Flange 좌표계와의 관계 $T^{flange}_{camera}$가 상수다. 눈이 손에 달려 있다는 뜻의 Eye-in-Hand.
+_Avoid_: Robot Mount
+
 ### 의미적 명칭 (Semantic names)
 
 **w2s / f2s / v2r**:
