@@ -62,8 +62,8 @@ import Quiz, {MultipleChoice} from '@site/src/components/Quiz';
 
 ## 4. 뷰어로 확인 — Fixed Post (Eye-to-Hand)
 
-카메라가 로봇 앞 공중의 고정 위치에 떠 있습니다. 화살표는 World 좌표계 원점에서
-Camera 좌표계 원점으로 향하는 두 좌표계의 관계입니다.
+카메라가 로봇 앞 공중의 고정 위치에 떠 있습니다. 화살표는 World 좌표계와 Camera
+좌표계의 관계입니다 — 기호 읽는 법은 1-4절.
 
 <RobotCellViewer
   defaultMount="post"
@@ -81,8 +81,8 @@ Camera 좌표계 원점으로 향하는 두 좌표계의 관계입니다.
 
 ## 5. 뷰어로 확인 — Hand-Eye (Eye-in-Hand)
 
-같은 셀에서 카메라를 플랜지 옆으로 옮겼습니다. 이번에는 Flange 좌표계에서 Camera
-좌표계로 향하는 화살표를 켜 두었습니다.
+같은 셀에서 카메라를 플랜지 옆으로 옮겼습니다. 이번에는 Flange 좌표계와 Camera
+좌표계의 관계를 나타내는 화살표를 켜 두었습니다.
 
 <RobotCellViewer
   defaultMount="robot"
@@ -94,8 +94,8 @@ Camera 좌표계 원점으로 향하는 두 좌표계의 관계입니다.
 />
 
 - **Camera 축** — 그리퍼 옆, 광축이 그리퍼가 뻗는 방향과 나란함
-- **Flange → Camera 화살표** — 짧고 고정 — 볼트로 붙어 있으니 변하지 않음
-- **World → Camera 화살표 켜기** — 로봇 자세에 따라 달라지는 관계
+- **Flange·Camera 화살표** — 짧고 고정 — 볼트로 붙어 있으니 변하지 않음
+- **World·Camera 화살표 켜기** — 로봇 자세에 따라 달라지는 관계
   - 비교: 4절의 Fixed Post에서는 이 화살표가 고정이었음
 
 ## 6. 정리
@@ -111,7 +111,7 @@ Camera 좌표계 원점으로 향하는 두 좌표계의 관계입니다.
 | **Fixed Post** (Eye-to-Hand) | 고정 구조물 | 셀에 고정 | World ↔ Camera |
 | **Hand-Eye** (Eye-in-Hand) | 로봇 플랜지 | 로봇과 함께 움직임 | Flange ↔ Camera |
 
-## 7. 이해 확인 퀴즈 — 1단계 마무리
+## 7. 이해 확인 퀴즈
 
 <Quiz>
   <MultipleChoice
@@ -140,5 +140,4 @@ Camera 좌표계 원점으로 향하는 두 좌표계의 관계입니다.
   />
 </Quiz>
 
-1단계가 끝났습니다. 로봇의 세 지점, 비전-로봇의 좌표계 세 가지, 카메라를 다는
-두 방식을 익혔습니다. 다음은 좌표계 사이의 **관계**를 숫자로 적는 일입니다.
+뷰어의 화살표에 붙어 있던 기호 $T^{world}_{camera}$ — 다음 절에서 이 **표기법**을 읽는 법을 배웁니다.

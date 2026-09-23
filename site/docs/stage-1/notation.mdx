@@ -1,0 +1,149 @@
+---
+id: notation
+title: 1-4. 좌표계 관계의 표기
+sidebar_label: 1-4. 좌표계 관계의 표기
+description: T^A_B의 두 가지 읽기, 변수 표기 T_A_B(camelCase), 그리고 쓰지 않는 표현
+---
+
+import RobotCellViewer from '@site/src/components/RobotCellViewer';
+import Quiz, {MultipleChoice, ShortAnswer, Math} from '@site/src/components/Quiz';
+
+# 1-4. 좌표계 관계의 표기
+
+좌표계가 여러 개면 "이 좌표계와 저 좌표계의 관계"를 적을 기호가 필요합니다. 이 절은
+그 기호를 **읽고 쓰는 법**만 다룹니다 — 계산은 뒤 단계에서 합니다.
+
+## 1. 기호 $T^{A}_{B}$
+
+$$
+T^{A}_{B}
+$$
+
+- **위첨자 $A$** — 기준 좌표계
+- **아래첨자 $B$** — 대상 좌표계
+- **정체** — 두 좌표계의 관계를 담은 4×4 변환행렬 (3단계)
+
+## 2. 두 가지 읽기
+
+같은 $T^{A}_{B}$를 두 관점에서 말할 수 있습니다. 둘은 같은 행렬입니다.
+
+- **읽기 1 — 좌표계의 관계** — "$A$ 좌표계 기준의 $B$ 좌표계"
+  - 뜻: $B$ 좌표계가 $A$ 좌표계에서 어디에 어떤 자세로 있나
+- **읽기 2 — 좌표의 변환** — "$B$ 좌표계상의 좌표를 $A$ 좌표계상의 좌표로 변환하는 변환행렬"
+  - 뜻: $B$ 기준으로 적힌 점을 $A$ 기준 숫자로 바꿔 줌
+- **예 — $T^{world}_{camera}$**
+  - 읽기 1: World 좌표계 기준의 Camera 좌표계 — 카메라가 어디에 설치돼 있나
+  - 읽기 2: Camera 좌표계상의 좌표를 World 좌표계상의 좌표로 변환 — 1-3절의 핵심 질문에 답하는 행렬
+- **예 — $T^{flange}_{camera}$** — Flange 좌표계 기준의 Camera 좌표계 (Hand-Eye에서 고정)
+
+## 3. 변수 표기 — `T_A_B`
+
+코드나 문서에서 첨자를 쓸 수 없을 때는 밑줄로 잇습니다.
+
+- **형식** — `T_<A>_<B>` — 첨자 순서(기준, 대상) 그대로
+- **이름은 camelCase** — $A$, $B$ 각각
+  - 예: `T_world_camera`, `T_flange_tcp`, `T_world_userFrame`, `T_robotBase_camera`
+- **대응** — $T^{world}_{camera}$ ↔ `T_world_camera`
+
+| LaTeX | 변수 | 읽기 1 |
+| :-- | :-- | :-- |
+| $T^{world}_{camera}$ | `T_world_camera` | World 기준의 Camera |
+| $T^{flange}_{camera}$ | `T_flange_camera` | Flange 기준의 Camera |
+| $T^{flange}_{tcp}$ | `T_flange_tcp` | Flange 기준의 TCP |
+
+## 4. 쓰지 않는 표현
+
+:::caution["A에서 B로", "A to B"라고 말하지 않습니다]
+
+읽기 1은 $A \to B$처럼, 읽기 2는 $B \to A$처럼 들립니다. 그래서 "에서/로"나 "to"를
+쓰면 듣는 사람이 매번 어느 방향인지 다시 따져야 하고, 현장에서 가장 흔한 오해가
+여기서 생깁니다.
+
+- 금지 — 변수명 `T_A_to_B`, `T_AtoB`; 말로 "A에서 B로", "A to B", "From A To B"
+- 대신 — "$A$ 기준의 $B$" 또는 "$B$ 좌표를 $A$ 좌표로 변환"
+
+:::
+
+- **첨자를 반대로 적는 자료** — 위첨자에 대상, 아래첨자에 기준을 적는 자료도 있음
+  - 나란히 볼 때: 첨자를 뒤집어 읽기 (결정 배경: ADR-0001)
+
+## 5. 뷰어로 읽기 연습
+
+화살표 하나가 $T$ 하나입니다. 꼬리가 기준(위첨자) 좌표계 원점, 화살촉이 대상(아래첨자)
+좌표계 원점입니다. 라벨을 보고 **읽기 1**로 소리 내어 읽어 보세요.
+
+<RobotCellViewer
+  defaultMount="robot"
+  mountToggle={false}
+  defaultAxes={['world', 'flange', 'camera']}
+  defaultArrows={['world-flange', 'flange-camera']}
+/>
+
+- **$T^{world}_{flange}$** — World 기준의 Flange — 로봇 제어기가 매 순간 알려 주는 값
+- **$T^{flange}_{camera}$** — Flange 기준의 Camera — Hand-Eye에서 변하지 않는 값
+- **$T^{world}_{camera}$ 켜기** — World 기준의 Camera — 앞의 둘을 이어 붙인 결과 (3단계 체인룰)
+- **연습** — 각 화살표를 읽기 2로도 바꿔 말해 보기
+  - 예: Camera 좌표를 Flange 좌표로 변환하는 변환행렬
+
+## 6. 정리
+
+- **$T^{A}_{B}$** — 위첨자 = 기준, 아래첨자 = 대상
+- **읽기 1** — $A$ 좌표계 기준의 $B$ 좌표계
+- **읽기 2** — $B$ 좌표계상의 좌표를 $A$ 좌표계상의 좌표로 변환하는 변환행렬
+- **변수** — `T_A_B`, 이름은 camelCase
+- **금지** — `T_A_to_B`, "A에서 B로", "A to B"
+
+## 7. 이해 확인 퀴즈 — 1단계 마무리
+
+<Quiz>
+  <MultipleChoice
+    question={
+      <>
+        <Math tex="T^{world}_{tcp}" />를 바르게 읽은 것은?
+      </>
+    }
+    options={[
+      'World 좌표계 기준의 TCP 좌표계',
+      'TCP 좌표계 기준의 World 좌표계',
+      'World에서 TCP로 가는 변환',
+      'World 좌표계상의 좌표를 TCP 좌표계상의 좌표로 변환하는 행렬',
+    ]}
+    answerIndex={0}
+    explanation="위첨자 = 기준, 아래첨자 = 대상입니다. 읽기 2로는 'TCP 좌표계상의 좌표를 World 좌표계상의 좌표로 변환하는 변환행렬'이 됩니다. '에서/로' 표현은 쓰지 않습니다 — 1-4절."
+  />
+  <ShortAnswer
+    question={
+      <>
+        <Math tex="T^{flange}_{camera}" />를 코드 변수로 적으면? (밑줄 표기)
+      </>
+    }
+    acceptedAnswers={['T_flange_camera']}
+    displayAnswer="T_flange_camera"
+    explanation="T_<기준>_<대상> 순서 그대로, 이름은 camelCase입니다. T_flange_to_camera 같은 표기는 쓰지 않습니다 — 1-4절."
+  />
+  <MultipleChoice
+    question="다음 중 이 교재에서 쓰지 않는 표현은?"
+    options={[
+      '"Camera에서 World로의 변환 T_camera_to_world"',
+      '"World 좌표계 기준의 Camera 좌표계"',
+      '"Camera 좌표계상의 좌표를 World 좌표계상의 좌표로 변환하는 변환행렬"',
+      'T_world_camera',
+    ]}
+    answerIndex={0}
+    explanation="'에서/로', 'to' 표현과 T_A_to_B 변수명은 방향 혼동을 낳아 금지합니다. 나머지 셋은 허용된 읽기와 변수 표기입니다 — 1-4절."
+  />
+  <MultipleChoice
+    question="Hand-Eye (Eye-in-Hand) 방식에서 로봇 자세와 무관하게 값이 변하지 않는 것은?"
+    options={[
+      <Math tex="T^{flange}_{camera}" />,
+      <Math tex="T^{world}_{camera}" />,
+      <Math tex="T^{world}_{flange}" />,
+      <Math tex="T^{world}_{tcp}" />,
+    ]}
+    answerIndex={0}
+    explanation="카메라가 플랜지에 볼트로 붙어 있으므로 Flange 기준의 Camera는 상수입니다. 나머지는 로봇이 움직이면 함께 바뀝니다 — 1-3절·1-4절."
+  />
+</Quiz>
+
+1단계가 끝났습니다. 로봇의 세 지점과 좌표계, 조깅, 비전-로봇의 좌표계와 부착 방식,
+그리고 관계를 적는 기호까지 익혔습니다.
