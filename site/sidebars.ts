@@ -23,14 +23,9 @@ const sidebars: SidebarsConfig = {
     // ── 숨김 — 편집하며 한 단계씩 위로 옮겨 켠다 ──────────────────────
     // {
     //   type: 'category',
-    //   label: '1단계 · 좌표계 기초',
+    //   label: '1단계 · 로봇 용어와 좌표계',
     //   link: {type: 'doc', id: 'stage-1/index'},
-    //   items: [
-    //     'stage-1/what-is-a-frame',
-    //     'stage-1/frames-in-a-robot-cell',
-    //     'stage-1/mount-types',
-    //     'stage-1/notation-and-diagrams',
-    //   ],
+    //   items: ['stage-1/robot-terms', 'stage-1/jogging'],
     // },
     // {
     //   type: 'category',

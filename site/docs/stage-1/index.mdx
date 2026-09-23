@@ -1,44 +1,26 @@
 ---
 id: index
-title: 1단계 · 좌표계 기초
+title: 1단계 · 로봇 용어와 좌표계
 sidebar_label: 1단계 개요
-description: 좌표계란 무엇인가부터 T 표기법까지 — 이후 모든 챕터의 전제
+description: 로봇 베이스·플랜지·TCP와 거기에 붙은 좌표계, 그리고 그것을 기준으로 로봇을 움직이는 조깅
 ---
 
-import RobotCellViewer from '@site/src/components/RobotCellViewer';
+# 1단계 · 로봇 용어와 좌표계
 
-# 1단계 · 좌표계 기초
+로봇을 다루려면 먼저 **로봇 위의 세 지점**과 거기에 붙은 좌표계를 알아야 합니다.
+그다음 그 좌표계를 기준으로 로봇을 직접 움직여 봅니다.
 
-1단계에서는 이후 모든 챕터의 전제가 되는 "좌표계라는 언어"를 익힙니다.
-**계산은 아직 하지 않습니다** — 언어를 먼저 익히고, 수학은 2단계에서 시작합니다.
+- **배우는 것 세 가지**
+  - 로봇 용어 — 로봇 베이스, 플랜지, TCP
+  - 각 지점에 붙은 좌표계 — World(Base), Flange, Tool(TCP)
+  - 조깅 — Joint / Base / TCP / Flange / User 기준으로 로봇 움직이기
 
-- **배우는 것 네 가지**
-  - 좌표계라는 개념
-  - 로봇 셀에 붙어 있는 좌표계들
-  - 카메라 설치 방식 두 가지 — Mount
-  - 좌표계 관계의 표기법 $T^{A}_{B}$와 화살표 도식 읽는 법
+## 1. 절 구성
 
-## 1. 이 단계에서 다루는 로봇 셀
+두 개의 절을 순서대로 읽습니다. 절마다 URDF 로봇 뷰어가 하나씩 있습니다.
 
-UR5e 로봇과 카메라로 이루어진 셀입니다. 마우스로 드래그해 셀을 돌려보고,
-아래 토글을 하나씩 켜 보세요.
-
-- **좌표계 축** — RGB 화살표 켜고 끄기
-- **Mount 전환** — Post ↔ Robot
-- **$T$ 화살표** — 꼬리 = 기준, 화살촉 = 타겟
-- **각 절에서** — 이 뷰어를 절에 맞는 구성으로 다시 만남
-
-<RobotCellViewer defaultAxes={['world', 'camera']} defaultArrows={['world-camera']} />
-
-## 2. 절 구성
-
-네 개의 절을 순서대로 읽습니다.
-
-- **[1-1. 좌표계란 무엇인가](./what-is-a-frame.mdx)** — 원점 + 세 축, 오른손 법칙
-  - 핵심 질문: 위치는 항상 어디 기준인가
-- **[1-2. 로봇 셀의 좌표계들](./frames-in-a-robot-cell.mdx)** — World / Flange / Tool / Camera / User 좌표계가 어디에 붙어 있는지
-  - 포함: World vs Robot Base 용어 주석
-- **[1-3. Mount 두 방식](./mount-types.mdx)** — Post Mount와 Robot Mount
-  - 핵심 질문: 카메라 좌표계가 고정인가, 로봇을 따라 움직이는가
-- **[1-4. 표기법과 화살표 도식 읽기](./notation-and-diagrams.mdx)** — $T^{A}_{B}$, $P^{A}_{name}$, from-to 화살표
-  - 범위: 계산 없이 읽는 법만
+- **[1-1. 로봇 용어와 좌표계](./robot-terms.mdx)** — 로봇 베이스 · 플랜지 · TCP
+  - 뷰어: 축을 켜고 끄며 세 좌표계가 어디에 붙어 있는지 확인
+- **[1-2. 조깅 연습](./jogging.mdx)** — 같은 버튼, 다른 움직임
+  - 뷰어: Joint · Base · TCP · Flange · User 기준 조깅 실습
+  - 마무리: 1단계 이해 확인 퀴즈

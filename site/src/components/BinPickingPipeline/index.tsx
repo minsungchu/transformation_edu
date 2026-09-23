@@ -34,9 +34,15 @@
  */
 import React, {useEffect, useMemo, useRef, useState, type ReactNode} from 'react';
 import useBaseUrl from '@docusaurus/useBaseUrl';
-import type {CartesianJogStep, Vec3} from 'transform-core';
 import {DEFAULT_ROBOT, ROBOT_MODELS} from '../RobotCellViewer/robots';
 import {FullscreenButton, useViewerFullscreen} from '../RobotCellViewer/fullscreen';
+import {
+  ANGULAR_STEPS_DEG,
+  CARTESIAN_AXES,
+  JogChip,
+  LINEAR_STEPS_MM,
+  StepSelect,
+} from '../RobotCellViewer/jog-controls';
 import type {FreeDragState, JogMode, PipelineScene} from './scene';
 import {PIPELINE_STEPS, PIPELINE_STEP_COUNT} from './steps';
 import styles from '../RobotCellViewer/styles.module.css';
@@ -99,17 +105,8 @@ const FRAME_LABELS: Record<Exclude<JogMode, 'joint'>, string> = {
   base: 'World',
   flange: 'Flange',
   tcp: 'TCP',
+  user: 'User', // 이 뷰어에는 User 모드 버튼이 없다 — 타입 완결용
 };
-
-/** Cartesian 조그 버튼 6종 — 병진 3축 + 회전 3축. */
-const CARTESIAN_AXES: {label: string; kind: CartesianJogStep['kind']; axis: Vec3}[] = [
-  {label: 'X', kind: 'translate', axis: [1, 0, 0]},
-  {label: 'Y', kind: 'translate', axis: [0, 1, 0]},
-  {label: 'Z', kind: 'translate', axis: [0, 0, 1]},
-  {label: 'Rx', kind: 'rotate', axis: [1, 0, 0]},
-  {label: 'Ry', kind: 'rotate', axis: [0, 1, 0]},
-  {label: 'Rz', kind: 'rotate', axis: [0, 0, 1]},
-];
 
 /**
  * free 드래그 상태별 안내문 — 드래그 중에는 지금 손이 가 있는 조작이므로
@@ -121,81 +118,6 @@ const FREE_DRAG_NOTES: Partial<Record<FreeDragState, string>> = {
   blocked:
     '도달 범위 밖입니다 — IK가 수렴하지 못하는 목표는 무시하고 마지막 유효 자세를 유지합니다.',
 };
-
-/** 스텝 크기 선택지 — 병진(mm) / 회전(°). */
-const LINEAR_STEPS_MM = [5, 20, 50];
-const ANGULAR_STEPS_DEG = [1, 5, 10];
-
-function StepSelect({
-  label,
-  unit,
-  values,
-  value,
-  onChange,
-  disabled,
-}: {
-  label: string;
-  unit: string;
-  values: readonly number[];
-  value: number;
-  onChange: (next: number) => void;
-  disabled: boolean;
-}): ReactNode {
-  return (
-    <label className={styles.toggle}>
-      {label}
-      <select
-        className={styles.jogSelect}
-        value={value}
-        disabled={disabled}
-        onChange={(e) => onChange(Number(e.target.value))}>
-        {values.map((v) => (
-          <option key={v} value={v}>
-            {v}
-            {unit}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
-
-/** [−] 라벨 [+] 한 벌. */
-function JogChip({
-  label,
-  title,
-  disabled,
-  onStep,
-}: {
-  label: string;
-  title: string;
-  disabled: boolean;
-  onStep: (sign: 1 | -1) => void;
-}): ReactNode {
-  return (
-    <span className={styles.jogChip}>
-      <button
-        type="button"
-        className={styles.jogButton}
-        disabled={disabled}
-        aria-label={`${title} − 방향`}
-        onClick={() => onStep(-1)}>
-        −
-      </button>
-      <span className={styles.jogChipLabel} title={title}>
-        {label}
-      </span>
-      <button
-        type="button"
-        className={styles.jogButton}
-        disabled={disabled}
-        aria-label={`${title} + 방향`}
-        onClick={() => onStep(1)}>
-        +
-      </button>
-    </span>
-  );
-}
 
 export default function BinPickingPipeline({height}: {height?: number} = {}): ReactNode {
   const containerRef = useRef<HTMLDivElement>(null);

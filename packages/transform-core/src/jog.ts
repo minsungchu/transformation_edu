@@ -88,16 +88,19 @@ export function cartesianJogTarget(
 // ── tool 오프셋: flange와 TCP 사이의 한 겹 ────────────────────────────
 
 /**
- * 조그의 기준 좌표계 **세 가지** — 축 방향과 제어점(=회전중심)을 함께 고른다.
+ * 조그의 기준 좌표계 **네 가지** — 축 방향과 제어점(=회전중심)을 함께 고른다.
  *
  * - `'base'` — 축은 World, 제어점은 TCP. 어떤 자세든 World 축 방향으로 간다.
  * - `'flange'` — 축·회전중심 모두 플랜지(6축 원점).
  * - `'tcp'` — 축·회전중심 모두 TCP(그리퍼 끝단).
+ * - `'user'` — 축은 사용자가 정의한 User 좌표계($T^{base}_{user}$), 제어점은 TCP.
+ *   Base 기준과 똑같이 움직이되 축 방향만 User 좌표계 것을 쓴다 — 작업대가
+ *   비스듬히 놓여 있을 때 그 모서리를 따라 조그하는 용도.
  *
  * `'flange'`와 `'tcp'`는 축 방향이 같아도(오프셋에 회전이 없으면) **회전중심**이
  * 그리퍼 길이만큼 떨어져 있어 회전 조그가 눈에 띄게 다르게 움직인다.
  */
-export type JogControlFrame = 'base' | 'flange' | 'tcp';
+export type JogControlFrame = 'base' | 'flange' | 'tcp' | 'user';
 
 /** 체인룰로 TCP pose를 얻는다 — $T^{base}_{tcp} = T^{base}_{flange} \cdot T^{flange}_{tcp}$. */
 export function tcpPoseFromFlange(flange: Transform, toolOffset: Transform): Transform {
@@ -119,24 +122,36 @@ export interface ToolJogRequest {
   toolOffset: Transform;
   step: CartesianJogStep;
   frame: JogControlFrame;
+  /** User 좌표계 $T^{base}_{user}$ — `frame`이 `'user'`일 때만 필요하다. */
+  userFrame?: Transform;
 }
 
 /**
  * 조그 스텝 하나를 적용한 뒤 **IK에 넣을 목표 플랜지 pose**.
  *
- * 세 모드가 갈리는 지점은 "델타를 어느 pose에 적용하는가"뿐이다:
+ * 네 모드가 갈리는 지점은 "델타를 어느 pose에, 어느 축으로 적용하는가"뿐이다:
  *
  * - `'flange'` — 플랜지 pose에 우곱하고 그대로 돌려준다 (오프셋은 등장하지 않는다).
  * - `'tcp'` / `'base'` — TCP pose를 만들어 거기에 델타를 적용한 뒤,
  *   $T_{tcp'} \cdot (T^{flange}_{tcp})^{-1}$로 플랜지 목표로 되돌린다.
  *   그리퍼 끝단을 제어하고 싶다는 뜻이므로 회전중심도 자연히 TCP가 된다.
+ * - `'user'` — 스텝의 축을 User 좌표계에서 World 축으로 돌려 놓은 뒤 `'base'`와
+ *   같다. User 좌표계의 원점은 쓰이지 않는다 — 제어점은 여전히 TCP다.
  */
 export function jogTargetFlangePose({
   flange,
   toolOffset,
   step,
   frame,
+  userFrame,
 }: ToolJogRequest): Transform {
+  if (frame === 'user') {
+    if (!userFrame) {
+      throw new Error("frame이 'user'이면 userFrame(T^base_user)이 필요합니다");
+    }
+    const axis = userFrame.transformDirection(step.axis);
+    return jogTargetFlangePose({flange, toolOffset, step: {...step, axis}, frame: 'base'});
+  }
   if (frame === 'flange') {
     return cartesianJogTarget(flange, step, 'tool');
   }

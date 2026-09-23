@@ -202,6 +202,32 @@ describe('jogTargetFlangePose — Flange 회전 vs TCP 회전 (회전중심 차�
     );
   });
 
+  it('User 모드 병진은 User 좌표계 축 방향이고 제어점은 TCP다', () => {
+    // User 좌표계가 z축 90° 돌아 있으면 User +X = World +Y. 원점은 어디든 상관없다.
+    const userFrame = Transform.fromTranslation([5, 5, 5]).compose(Transform.rotationZ(90 * DEG));
+    const flange = sideFacingFlange();
+    const target = jogTargetFlangePose({
+      flange,
+      toolOffset: TOOL_OFFSET,
+      step: {kind: 'translate', axis: [1, 0, 0], amount: 0.1},
+      frame: 'user',
+      userFrame,
+    });
+    expectVec3Close(tcpOf(target).translation, [0.52, 0.2, 0.6]);
+    // User 좌표계가 World와 같으면 Base 모드와 완전히 같다.
+    const step = {kind: 'rotate', axis: [0, 0, 1], amount: 20 * DEG} as const;
+    expectTransformClose(
+      jogTargetFlangePose({flange, toolOffset: TOOL_OFFSET, step, frame: 'user', userFrame: Transform.identity()}),
+      jog(flange, step, 'base'),
+    );
+  });
+
+  it('User 모드에 userFrame이 없으면 예외다', () => {
+    expect(() =>
+      jogTargetFlangePose({flange: sideFacingFlange(), toolOffset: TOOL_OFFSET, step, frame: 'user'}),
+    ).toThrow();
+  });
+
   it('Flange 모드 병진은 플랜지 자신의 축 방향이다', () => {
     // approach(+Z)로 밀면 World +X로 (플랜지가 그쪽을 보고 있으므로).
     const target = jog(sideFacingFlange(), {kind: 'translate', axis: [0, 0, 1], amount: 0.05}, 'flange');

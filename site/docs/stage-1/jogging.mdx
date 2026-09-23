@@ -1,0 +1,121 @@
+---
+id: jogging
+title: 1-2. 조깅 연습
+sidebar_label: 1-2. 조깅 연습
+description: Joint · Base · TCP · Flange · User — 같은 버튼, 다른 움직임
+---
+
+import RobotJogViewer from '@site/src/components/RobotJogViewer';
+import Quiz, {MultipleChoice, ShortAnswer} from '@site/src/components/Quiz';
+
+# 1-2. 조깅 연습
+
+## 1. 조깅이란
+
+**조깅(jog)**은 티칭 펜던트의 버튼으로 로봇을 조금씩 움직이는 일입니다. 버튼은
+늘 같은 `+X`, `−Z`, `+Rz`이지만, **무엇을 기준으로** 움직일지는 사용자가 고릅니다.
+
+- **Joint 조깅** — 관절 하나를 직접 돌림
+  - 좌표계: 무관
+- **Cartesian 조깅** — TCP를 어떤 좌표계의 축 방향으로 밀거나 돌림
+  - 고를 것 두 가지: **축 방향**(어느 좌표계의 x, y, z인가) + **회전중심**(어느 점 둘레로 도는가)
+- **기준 좌표계 선택지** — Base / TCP / Flange / User
+
+## 2. 다섯 가지 조깅
+
+- **Joint** — J1~J6 관절 하나씩
+  - 쓰는 때: 특이 자세를 빠져나올 때, 팔 전체 형태를 바꿀 때
+- **Base** — World 좌표계 축 방향, 제어점은 TCP
+  - 특징: TCP가 어떻게 기울어져 있어도 World의 +X로 곧게 감
+  - 쓰는 때: 작업대 위에서 "옆으로, 위로" 이동
+- **TCP** — Tool 좌표계 축 방향, 회전중심은 TCP
+  - 특징: 그리퍼가 뻗은 방향(+z)으로 밀면 물체에 곧장 접근
+  - 회전: 그리퍼 끝단을 제자리에 두고 자세만 바뀜
+- **Flange** — Flange 좌표계 축 방향, 회전중심은 6축 원점
+  - 특징: 축 방향은 TCP와 같지만, 회전하면 그리퍼 끝단이 원호를 그리며 크게 휨
+  - 쓰는 때: 공구 오프셋을 아직 설정하지 않았을 때
+- **User** — 사용자가 정의한 좌표계 축 방향, 제어점은 TCP
+  - 특징: 비스듬히 놓인 작업대 모서리를 따라 곧게 이동
+  - 정의: 작업대 위 한 점을 원점으로, 모서리를 x축으로
+
+## 3. 실습
+
+아래 뷰어로 다섯 가지 조깅을 차례로 해 보세요. 툴바 아래에 **TCP 위치·자세**가
+World 기준 숫자로 나옵니다 — 버튼을 누를 때마다 어느 숫자가 바뀌는지 보세요.
+
+<RobotJogViewer defaultFrames={['world', 'tcp']} />
+
+- **실습 1 — Joint** — J1 `+`를 여러 번
+  - 관찰: 팔 전체가 Base 둘레로 돌고 TCP 위치의 x, y가 함께 바뀜
+  - J5 `+`를 서너 번: 그리퍼가 기울어짐 — 이 자세로 다음 실습을 이어감
+- **실습 2 — Base** — 기준을 Base로, `X +`를 여러 번
+  - 관찰: 그리퍼가 기울어져 있어도 World 빨간 축 방향으로 직진
+  - 숫자: TCP 위치의 x만 늘고 자세는 그대로
+- **실습 3 — TCP** — 기준을 TCP로, `Z +`를 여러 번
+  - 관찰: 그리퍼가 뻗은 방향으로 나아감 — Base의 Z와 방향이 다름
+  - `Rz +`: 패드 끝은 제자리, 그리퍼만 제자리에서 돎
+- **실습 4 — Flange** — 기준을 Flange로, `Rx +`를 여러 번
+  - 관찰: 6축 원점은 제자리, 패드 끝이 원호를 그리며 크게 움직임
+  - 비교: 초기 자세로 되돌린 뒤 TCP 기준 `Rx +` — 끝단이 거의 움직이지 않음
+- **실습 5 — User** — 기준을 User로
+  - 슬라이더 $R_z$를 $30^\circ$에 두고 `X +`: World 축과 비스듬한 방향으로 직진
+  - $R_z$를 $90^\circ$로 바꾸고 다시 `X +`: 이동 방향이 함께 돎 — 축 방향만 User에서 빌려 옴
+
+:::caution[움직이지 않을 때]
+
+버튼을 눌러도 로봇이 그대로면 **도달 범위 밖**이거나 **특이 자세** 근처입니다.
+툴바 안내문이 빨갛게 바뀌면 다른 방향으로 빼거나 Joint 조깅으로 자세를 바꾼 뒤
+다시 시도하세요.
+
+:::
+
+## 4. 정리
+
+| 기준 | 축 방향 | 회전중심 |
+| :-- | :-- | :-- |
+| Joint | — | 관절 축 |
+| **Base** | World 좌표계 | TCP |
+| **TCP** | Tool 좌표계 | TCP |
+| **Flange** | Flange 좌표계 | 6축 원점 |
+| **User** | User 좌표계 | TCP |
+
+- **같은 버튼, 다른 움직임** — 차이는 축 방향과 회전중심 두 가지뿐
+- **TCP와 Flange** — 축 방향은 같아도 회전중심이 그리퍼 길이만큼 다름
+
+## 5. 이해 확인 퀴즈 — 1단계 마무리
+
+<Quiz>
+  <MultipleChoice
+    question="로봇의 Base를 원점으로 하는, 셀에서 움직이지 않는 좌표계를 이 교재에서 부르는 이름은?"
+    options={['World 좌표계', 'Tool 좌표계', 'Flange 좌표계', 'User 좌표계']}
+    answerIndex={0}
+    explanation="Base 기준 좌표계는 World 좌표계로 통일해 부릅니다. 티칭 펜던트의 버튼 이름 Base는 병기만 합니다 — 1-1절."
+  />
+  <MultipleChoice
+    question="공구를 아직 달지 않아 TCP 오프셋이 0인 지점은?"
+    options={['Flange', 'Base', 'User 좌표계 원점', '카메라']}
+    answerIndex={0}
+    explanation="Flange는 6축 끝 원판 중심으로, 공구가 없으면 TCP가 바로 여기입니다. 공구를 달면 TCP만 공구 끝으로 옮겨 갑니다 — 1-1절."
+  />
+  <MultipleChoice
+    question="그리퍼가 기울어진 상태에서 +X를 눌렀는데 World의 x축 방향으로 곧게 움직였습니다. 어떤 기준으로 조깅한 것인가요?"
+    options={['Base', 'TCP', 'Flange', 'Joint']}
+    answerIndex={0}
+    explanation="Base 기준은 TCP 자세와 무관하게 World 축 방향으로 움직입니다. TCP·Flange 기준이었다면 기울어진 축 방향으로 갔을 것입니다 — 1-2절."
+  />
+  <MultipleChoice
+    question="TCP 기준과 Flange 기준 회전 조깅의 결정적 차이는?"
+    options={['회전중심이 다르다', '회전 방향이 반대다', '회전 속도가 다르다', 'Flange 기준은 회전이 불가능하다']}
+    answerIndex={0}
+    explanation="축 방향은 같지만 TCP 기준은 그리퍼 끝단을, Flange 기준은 6축 원점을 중심으로 돕니다. 그래서 Flange 기준 회전에서는 끝단이 원호를 그리며 크게 움직입니다 — 1-2절."
+  />
+  <ShortAnswer
+    question="비스듬히 놓인 작업대 모서리를 따라 곧게 이동하려면 어떤 기준으로 조깅해야 하나요? (영어로)"
+    acceptedAnswers={['user', 'user frame', 'user 좌표계', '유저']}
+    displayAnswer="User"
+    explanation="User 좌표계를 작업대에 맞춰 정의하면, 그 축 방향으로 조깅할 수 있습니다 — 1-2절."
+  />
+</Quiz>
+
+1단계가 끝났습니다. 로봇의 세 지점과 좌표계, 그리고 그것을 기준으로 로봇을
+움직이는 법을 익혔습니다.
