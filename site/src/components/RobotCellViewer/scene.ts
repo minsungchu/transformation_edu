@@ -159,6 +159,10 @@ export function createRobotCellScene(options: RobotCellSceneOptions): RobotCellS
   const tailPos = new THREE.Vector3();
   const headPos = new THREE.Vector3();
   const direction = new THREE.Vector3();
+  const labelOffset = new THREE.Vector3();
+  const SCENE_UP = new THREE.Vector3(0, 1, 0); // three.js y-up
+  /** 라벨을 화살표 선에서 옆으로 비켜 놓는 거리 (m) — 짧은 화살표가 라벨에 가려지지 않게. */
+  const LABEL_SIDE_OFFSET = 0.1;
   const updateArrows = (): void => {
     for (const entry of arrows.values()) {
       const fromAnchor = anchors.get(entry.def.from);
@@ -182,7 +186,14 @@ export function createRobotCellScene(options: RobotCellSceneOptions): RobotCellS
       entry.arrow.position.copy(tailPos);
       entry.arrow.setDirection(direction.normalize());
       entry.arrow.setLength(length, Math.min(0.07, length * 0.3), Math.min(0.035, length * 0.15));
-      entry.labelAnchor.position.lerpVectors(tailPos, headPos, 0.5);
+      // 라벨은 중점에서 화살표에 수직인 방향으로 비켜 둔다 — 중점에 그대로 놓으면
+      // T^flange_camera 같은 짧은 화살표는 라벨 뒤에 통째로 숨는다.
+      labelOffset.crossVectors(direction, SCENE_UP);
+      if (labelOffset.lengthSq() < 1e-6) {
+        labelOffset.set(1, 0, 0); // 화살표가 수직이면 옆으로
+      }
+      labelOffset.normalize().multiplyScalar(LABEL_SIDE_OFFSET);
+      entry.labelAnchor.position.lerpVectors(tailPos, headPos, 0.5).add(labelOffset);
     }
   };
 
